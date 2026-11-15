@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CityDef } from './data';
+import { HEIGHT, buildSprites, type SpriteName, type SpriteSpot } from './sprites';
 
 /**
  * City builder. Every city is a closed road loop (drive on the left) with
@@ -72,32 +73,16 @@ function canvasTex(w: number, h: number, draw: (c: CanvasRenderingContext2D) => 
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
   return t;
 }
-function speckle(c: CanvasRenderingContext2D, w: number, h: number, n: number, a: number) {
-  for (let i = 0; i < n; i++) { const v = Math.random() < 0.5 ? 0 : 255; c.fillStyle = `rgba(${v},${v},${v},${Math.random() * a})`; c.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2); }
-}
-function asphalt(): THREE.CanvasTexture {
-  const t = canvasTex(512, 512, (c) => {
-    c.fillStyle = '#34363a'; c.fillRect(0, 0, 512, 512);
-    speckle(c, 512, 512, 14000, 0.16);
-    c.fillStyle = 'rgba(0,0,0,0.12)'; for (const x of [95, 170, 342, 417]) c.fillRect(x - 22, 0, 44, 512); // tyre wear
-    c.strokeStyle = 'rgba(20,20,22,0.6)'; c.lineWidth = 1.5; // cracks
-    for (let i = 0; i < 9; i++) { let x = Math.random() * 512, y = Math.random() * 512; c.beginPath(); c.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 60; y += Math.random() * 40; c.lineTo(x, y); } c.stroke(); }
-    c.fillStyle = '#e8e4d6'; c.fillRect(14, 0, 9, 512); c.fillRect(489, 0, 9, 512); // edge lines
-    c.fillRect(251, 0, 10, 250); // centre dash
+function asphalt(photo: HTMLImageElement): THREE.CanvasTexture {
+  const t = canvasTex(512, 1024, (c) => {
+    c.drawImage(photo, 0, 0, 512, 512); c.save(); c.translate(0, 1024); c.scale(1, -1); c.drawImage(photo, 0, 0, 512, 512); c.restore();
+    c.fillStyle = 'rgba(0,0,0,0.10)'; for (const x of [95, 170, 342, 417]) c.fillRect(x - 24, 0, 48, 1024); // tyre wear
+    c.fillStyle = 'rgba(236,232,220,0.92)'; c.fillRect(14, 0, 9, 1024); c.fillRect(489, 0, 9, 1024); // edge lines
+    c.fillRect(251, 0, 10, 330); c.fillRect(251, 512, 10, 330); // centre dashes
   });
   t.wrapT = THREE.RepeatWrapping;
   return t;
 }
-const paving = () => canvasTex(128, 128, (c) => {
-  c.fillStyle = '#8f8a82'; c.fillRect(0, 0, 128, 128); speckle(c, 128, 128, 1500, 0.14);
-  c.strokeStyle = 'rgba(40,38,34,0.5)'; c.lineWidth = 2;
-  for (let i = 0; i <= 128; i += 32) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i, 128); c.moveTo(0, i); c.lineTo(128, i); c.stroke(); }
-});
-const groundTex = (hex: string) => canvasTex(256, 256, (c) => {
-  c.fillStyle = hex; c.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 9000; i++) { c.fillStyle = `rgba(${Math.random() < 0.6 ? '0,0,0' : '255,255,210'},${Math.random() * 0.2})`; c.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 5); }
-  for (let i = 0; i < 26; i++) { const x = Math.random() * 256, y = Math.random() * 256, r = 14 + Math.random() * 30, g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${Math.random() < 0.5 ? '40,30,10' : '0,0,0'},0.22)`); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); }
-}, [90, 90]);
 const glassTex = () => canvasTex(128, 256, (c) => {
   c.fillStyle = '#2b3642'; c.fillRect(0, 0, 128, 256);
   for (let y = 4; y < 256; y += 16) for (let x = 4; x < 128; x += 16) {
@@ -137,7 +122,14 @@ export async function buildWorld(city: CityDef): Promise<World> {
   const disposables: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
   const tl = new THREE.TextureLoader();
-  const [facades, skyMap] = await Promise.all([tl.loadAsync('/assets/tex/facades.webp'), tl.loadAsync('/assets/tex/sky.webp')]);
+  const groundName = city.id === 'anuradhapura' ? 'earth' : 'grass';
+  const [facades, skyMap, propsMap, groundMap, paversMap, asphaltImg] = await Promise.all([
+    tl.loadAsync('/assets/tex/facades.webp'), tl.loadAsync('/assets/tex/sky.webp'), tl.loadAsync('/assets/tex/props.webp'),
+    tl.loadAsync(`/assets/tex/g_${groundName}.webp`), tl.loadAsync('/assets/tex/g_pavers.webp'),
+    new THREE.ImageLoader().loadAsync('/assets/tex/g_asphalt.webp')]);
+  for (const t of [propsMap, groundMap, paversMap]) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; keep(t); }
+  groundMap.wrapS = groundMap.wrapT = THREE.MirroredRepeatWrapping; groundMap.repeat.set(220, 220);
+  paversMap.wrapS = paversMap.wrapT = THREE.RepeatWrapping;
   facades.colorSpace = skyMap.colorSpace = THREE.SRGBColorSpace; facades.anisotropy = 8;
   keep(facades); keep(skyMap);
 
@@ -156,18 +148,17 @@ export async function buildWorld(city: CityDef): Promise<World> {
   g.add(sun, sun.target);
 
   // ── ground + road + pavements ──
-  const ground = new THREE.Mesh(keep(new THREE.PlaneGeometry(2400, 2400)), keep(new THREE.MeshStandardMaterial({ map: keep(groundTex(city.ground)), color: 0x9a9a9a, roughness: 1 })));
+  const ground = new THREE.Mesh(keep(new THREE.PlaneGeometry(2400, 2400)), keep(new THREE.MeshStandardMaterial({ map: groundMap, color: city.id === 'anuradhapura' ? 0xc8b8a0 : 0xb5bf9a, roughness: 1 })));
   ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.03, cz); ground.receiveShadow = true;
   g.add(ground);
-  const roadMat = keep(new THREE.MeshStandardMaterial({ map: keep(asphalt()), roughness: 0.82, metalness: 0.05 }));
-  const road = new THREE.Mesh(keep(ribbon(tr, ROAD_HALF, 0.02, -ROAD_HALF, 0.02, 10)), roadMat);
+  const roadMat = keep(new THREE.MeshStandardMaterial({ map: keep(asphalt(asphaltImg)), roughness: 0.82, metalness: 0.05 }));
+  const road = new THREE.Mesh(keep(ribbon(tr, ROAD_HALF, 0.02, -ROAD_HALF, 0.02, 17.6)), roadMat);
   road.receiveShadow = true; g.add(road);
-  const pave = keep(paving()); pave.wrapS = pave.wrapT = THREE.RepeatWrapping; pave.repeat.set(2, 1);
-  const paveMat = keep(new THREE.MeshStandardMaterial({ map: pave, roughness: 0.95 }));
+  const paveMat = keep(new THREE.MeshStandardMaterial({ map: paversMap, roughness: 0.95 }));
   const kerbMat = keep(new THREE.MeshStandardMaterial({ color: 0xb9b6ae, roughness: 0.9 }));
   for (const s of [1, -1]) {
     const a = s * ROAD_HALF, b = s * (ROAD_HALF + WALK);
-    const walk = new THREE.Mesh(keep(s > 0 ? ribbon(tr, b, 0.17, a, 0.17, 1.5) : ribbon(tr, a, 0.17, b, 0.17, 1.5)), paveMat);
+    const walk = new THREE.Mesh(keep(s > 0 ? ribbon(tr, b, 0.17, a, 0.17, WALK) : ribbon(tr, a, 0.17, b, 0.17, WALK)), paveMat);
     walk.receiveShadow = true;
     const kerb = new THREE.Mesh(keep(s > 0 ? ribbon(tr, a, 0.17, a, 0.0, 3) : ribbon(tr, a, 0.0, a, 0.17, 3)), kerbMat);
     g.add(walk, kerb);
@@ -190,8 +181,8 @@ export async function buildWorld(city: CityDef): Promise<World> {
         const u0 = (tile % 4) * 0.25, v0 = 1 - (Math.floor(tile / 4) + 1) * 0.5;
         for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
           const q = f * 4 + k, u = uv.getX(q), v = uv.getY(q);
-          if (f === 5) uv.setXY(q, u0 + 0.003 + u * 0.244, v0 + 0.004 + v * 0.492);
-          else uv.setXY(q, u0 + 0.012, v0 + 0.47); // side walls and roof: one plain wall colour
+          if (f === 2 || f === 3) uv.setXY(q, u0 + 0.012, v0 + 0.47); // roof and floor: plain wall colour
+          else uv.setXY(q, u0 + 0.003 + u * 0.244, v0 + 0.004 + v * 0.492); // every wall gets a real facade
         }
         const span = Math.max(1, Math.round(w / tr.step));
         box.applyMatrix4(basis(tr, Math.min(tr.n - 1, i + (span >> 1)), side, ROAD_HALF + WALK + 0.4 + d / 2, h / 2));
@@ -226,30 +217,29 @@ export async function buildWorld(city: CityDef): Promise<World> {
     tg.forEach((x) => x.dispose());
   }
 
-  // ── trees ──
-  const palmM: THREE.Matrix4[] = [], leafM: THREE.Matrix4[] = [];
-  const place = (i: number, side: number, lat: number) => {
+  // ── trees and roadside props: realistic photo sprites ──
+  const spots: SpriteSpot[] = [];
+  const at = (i: number, side: number, lat: number, name: SpriteName) => {
     const p = tr.pos[i].clone().addScaledVector(tr.left[i], side * lat);
-    const s = 0.8 + R() * 0.6;
-    const m = new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler((R() - 0.5) * 0.12, R() * 6.28, (R() - 0.5) * 0.12)), new THREE.Vector3(s, s, s));
-    (R() < city.palms ? palmM : leafM).push(m);
+    const [lo, hi] = HEIGHT[name];
+    spots.push({ name, x: p.x, z: p.z, h: lo + R() * (hi - lo), flip: R() < 0.5 });
   };
-  for (const f of free) if (R() < city.trees) place(f.i, f.side, ROAD_HALF + WALK + 2 + R() * 6);
-  const far = Math.round(260 * city.trees);
-  for (let k = 0; k < far; k++) place(Math.floor(R() * tr.n), R() < 0.5 ? 1 : -1, 24 + R() * 90);
-  for (let i = 0; i < tr.n; i += 9) if (R() < city.trees * 0.5) place(i, R() < 0.5 ? 1 : -1, ROAD_HALF + WALK - 0.7);
-  g.add(...instancedTrees(palmM, leafM, keep));
-
-  // ── lamp posts ──
-  const lampGeo = keep(mergeGeometries([
-    new THREE.CylinderGeometry(0.07, 0.11, 8, 6).translate(0, 4, 0),
-    new THREE.BoxGeometry(0.12, 0.1, 2.2).translate(0, 7.9, -1.0),
-    new THREE.BoxGeometry(0.34, 0.12, 0.7).translate(0, 7.84, -2.0),
-  ]));
-  const lampIdx: number[] = []; for (let i = 4; i < tr.n; i += 18) lampIdx.push(i);
-  const lamps = new THREE.InstancedMesh(lampGeo, keep(new THREE.MeshStandardMaterial({ color: 0x8a8d92, roughness: 0.6, metalness: 0.5 })), lampIdx.length);
-  lampIdx.forEach((i, k) => lamps.setMatrixAt(k, basis(tr, i, k % 2 ? 1 : -1, ROAD_HALF + 0.5)));
-  lamps.castShadow = true; g.add(lamps);
+  const treeName = (): SpriteName => {
+    if (R() < city.palms) return R() < 0.5 ? 'palm' : 'palm2';
+    const r = R(); return r < 0.3 ? 'raintree' : r < 0.55 ? 'mango' : r < 0.8 ? 'jak' : 'banana';
+  };
+  for (const f of free) {
+    if (R() < city.trees) at(f.i, f.side, ROAD_HALF + WALK + 2 + R() * 5, treeName());
+    if (R() < 0.35) at(f.i, f.side, ROAD_HALF + WALK + 0.9, R() < 0.5 ? 'hedge' : 'banana');
+  }
+  const far = Math.round(320 * city.trees);
+  for (let k = 0; k < far; k++) at(Math.floor(R() * tr.n), R() < 0.5 ? 1 : -1, 22 + R() * 110, treeName());
+  for (let i = 0; i < tr.n; i += 9) if (R() < city.trees * 0.5) at(i, R() < 0.5 ? 1 : -1, ROAD_HALF + WALK - 0.6, treeName());
+  for (let i = 4, k = 0; i < tr.n; i += 16, k++) at(i, k % 2 ? 1 : -1, ROAD_HALF + 0.45, 'pole');
+  const extras: SpriteName[] = ['halt', 'stall', 'bike', 'sign', 'stall', 'bike'];
+  for (let i = 12, k = 0; i < tr.n; i += 22 + Math.floor(R() * 14), k++) at(i, R() < 0.6 ? 1 : -1, ROAD_HALF + WALK * 0.55, extras[k % extras.length]);
+  const sprites = buildSprites(spots, propsMap, new THREE.Color(city.sky.fog));
+  keep(sprites); g.add(sprites.group);
 
   // ── landmarks ──
   const white = keep(new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.75 }));
@@ -306,48 +296,4 @@ export async function buildWorld(city: CityDef): Promise<World> {
     group: g, track: tr, sun,
     dispose() { disposables.forEach((d) => d.dispose()); },
   };
-}
-
-function instancedTrees(palmM: THREE.Matrix4[], leafM: THREE.Matrix4[], keep: <T extends { dispose(): void }>(x: T) => T): THREE.Object3D[] {
-  const out: THREE.Object3D[] = [];
-  const bark = keep(new THREE.MeshStandardMaterial({ color: 0x6f5b45, roughness: 1 }));
-  if (palmM.length) {
-    const trunk = new THREE.CylinderGeometry(0.15, 0.24, 9, 7, 6).translate(0, 4.5, 0);
-    const p = trunk.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) + Math.pow(p.getY(i) / 9, 2) * 1.0);
-    trunk.computeVertexNormals();
-    const fronds: THREE.BufferGeometry[] = [];
-    for (let i = 0; i < 11; i++) {
-      const f = new THREE.PlaneGeometry(1.0, 4.4, 2, 6).translate(0, 2.2, 0);
-      const q = f.attributes.position as THREE.BufferAttribute;
-      for (let k = 0; k < q.count; k++) { const y = q.getY(k), x = q.getX(k); q.setXYZ(k, x * (1 - y / 5.2), y * 0.9, -Math.pow(y / 4.4, 2) * (1.4 + (i % 3) * 0.5) - Math.abs(x) * 0.5); }
-      f.rotateX(-Math.PI / (2.3 + (i % 2) * 0.5)); f.rotateY((i / 11) * Math.PI * 2);
-      f.deleteAttribute('uv'); fronds.push(f.toNonIndexed());
-    }
-    const crown = mergeGeometries(fronds); crown.computeVertexNormals(); crown.translate(1.0, 9, 0);
-    const leafMat = keep(new THREE.MeshStandardMaterial({ color: 0x3c6d25, roughness: 0.8, side: THREE.DoubleSide }));
-    const a = new THREE.InstancedMesh(keep(trunk), bark, palmM.length), b = new THREE.InstancedMesh(keep(crown), leafMat, palmM.length);
-    palmM.forEach((m, i) => { a.setMatrixAt(i, m); b.setMatrixAt(i, m); });
-    a.castShadow = b.castShadow = true; out.push(a, b);
-  }
-  if (leafM.length) {
-    const trunk = new THREE.CylinderGeometry(0.28, 0.45, 5, 7).translate(0, 2.5, 0);
-    // dense, irregular canopy: many small noisy clumps, smooth shaded, dark natural greens
-    const rr = rng(77);
-    const blobs: THREE.BufferGeometry[] = [];
-    for (let k = 0; k < 13; k++) {
-      const r = 1.5 + rr() * 1.4, ang = rr() * 6.28, rad = rr() * 2.8;
-      const sph = new THREE.SphereGeometry(r, 10, 8);
-      const q = sph.attributes.position as THREE.BufferAttribute;
-      for (let i = 0; i < q.count; i++) { const n = 1 + (Math.sin(q.getX(i) * 5.1 + k) * Math.cos(q.getZ(i) * 4.3) + Math.sin(q.getY(i) * 6.7)) * 0.13; q.setXYZ(i, q.getX(i) * n, q.getY(i) * n * 0.8, q.getZ(i) * n); }
-      sph.translate(Math.cos(ang) * rad, 6.2 + rr() * 3.2, Math.sin(ang) * rad); sph.deleteAttribute('uv');
-      blobs.push(sph);
-    }
-    const crown = mergeGeometries(blobs); crown.computeVertexNormals();
-    const leafMat = keep(new THREE.MeshStandardMaterial({ color: 0x27401d, roughness: 1 }));
-    const a = new THREE.InstancedMesh(keep(trunk), bark, leafM.length), b = new THREE.InstancedMesh(keep(crown), leafMat, leafM.length);
-    leafM.forEach((m, i) => { a.setMatrixAt(i, m); b.setMatrixAt(i, m); });
-    a.castShadow = b.castShadow = true; out.push(a, b);
-  }
-  return out;
 }

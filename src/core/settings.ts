@@ -9,7 +9,7 @@ const KEY = 'picco.settings';
 
 function detectQuality(): Settings['quality'] {
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
-  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
   if (mobile && mem <= 3) return 'low';
   return mobile ? 'medium' : 'high';
 }

@@ -1,87 +1,83 @@
 import { CITIES, VEHICLES } from '../game/data';
-import { btn, h, mount } from './dom';
+import { h, mount } from './dom';
 import { icon } from './icons';
 
 export function wordmark(): HTMLElement {
   return h('div.wordmark', {}, h('i'), 'Picco Garage');
 }
 
-const STUDIO: Record<string, string> = { pbus: '/assets/img/studio_pbus.webp', sltb: '/assets/img/studio_sltb.webp', tuk: '/assets/img/studio_tuk.webp' };
+/** Full-width call to action: label on the left, arrow circle on the right. */
+export function cta(label: string, onClick: () => void, cls = ''): HTMLButtonElement {
+  return h<HTMLButtonElement>('button', { class: `cta ${cls}`.trim(), type: 'button', onclick: onClick }, h('span', {}, label), h('i', {}, icon('right', 20)));
+}
 
 export function showLanding(onPlay: () => void): void {
-  const play = (kind: string) => btn(kind, 'Play now', onPlay, 'right', true);
-  const nav = h('header.nav', {},
-    wordmark(),
-    h('nav.links', {}, h('a', { href: '#features' }, 'Features'), h('a', { href: '#fleet' }, 'Fleet'), h('a', { href: '#cities' }, 'Cities'), h('a', { href: '#music' }, 'Music')),
-    h('div.spacer'),
-    btn('white sm', 'Play', onPlay),
-  );
-  const bg = h('div.hero-bg');
-  const hero = h('section.hero', {}, bg,
-    h('div.hero-in', {},
-      h('div.eyebrow', {}, 'Sri Lankan driving, in your browser'),
-      h('h1', { html: 'Own the <em>island roads.</em>' }),
-      h('p', {}, 'Take the wheel of a private coach, a red route bus or a three-wheeler. Tune it in your garage, pick a city and drive: overtake, race, sound the horn.'),
-      h('div.cta', {}, play('primary lg'), h('a.btn.ghost.lg', { href: '#features' }, 'See what is inside')),
-      h('div.meta', {},
-        h('div', {}, h('b', {}, String(VEHICLES.length)), h('span', {}, 'Vehicles to drive')),
-        h('div', {}, h('b', {}, String(CITIES.length)), h('span', {}, 'Sri Lankan cities')),
-        h('div', {}, h('b', {}, 'Free'), h('span', {}, 'No download, play as guest')),
-      ),
+  const welcome = h('section.welcome', {},
+    h('div.giant', { 'aria-hidden': 'true' }, 'PICCO'),
+    h('div.glow'),
+    h('img.heroimg', { src: '/assets/img/hero_cut.webp', alt: 'A decorated Sri Lankan private bus', fetchpriority: 'high' }),
+    h('div.bar', {}, wordmark(), h('div.spacer')),
+    h('div.body', {},
+      h('h1.title.a', { style: '--i:0', html: 'Own the<br><em>Island</em> Roads' }),
+      h('p.sub.a', { style: '--i:1' }, 'Drive real Sri Lankan buses and three-wheelers through five cities, right in your browser.'),
+      h('div.a', { style: '--i:2' }, cta('Start your ride', onPlay)),
+      h('a.more', { href: '#inside' }, 'See what is inside', icon('chevD', 14)),
     ),
   );
 
-  const feature = (ic: string, title: string, body: string, d: number) =>
-    h('div.card.reveal', { style: `--d:${d}s` }, h('div.ic', {}, icon(ic, 22)), h('h3', {}, title), h('p', {}, body));
-  const features = h('section.sec', { id: 'features' },
-    h('div.sec-head.reveal', {}, h('div.eyebrow', {}, 'The game'), h('h2', {}, 'Everything a road needs.'), h('p', {}, 'A full driving game built for phones. Open the link, tap play, drive.')),
-    h('div.feat', {},
-      feature('wheel', 'Real driving feel', 'Accelerate, brake, reverse and steer with on-screen pedals and wheel, or a keyboard. Three camera views.', 0),
-      feature('wrench', 'Garage upgrades', 'Repaint your ride, add underglow, and upgrade engine, brakes and tyres with coins you earn.', 0.06),
-      feature('flag', 'Free ride or race', 'Cruise with no timer and earn for clean overtakes, or line up against three rivals for a lap.', 0.12),
-      feature('horn', 'Your horn, your music', 'Pick a horn or load your own sound. Play your YouTube playlist while you drive.', 0.18),
+  const feature = (ic: string, title: string, body: string, i: number) =>
+    h('div.rowf.rv', { style: `--i:${i}` }, h('div.ic', {}, icon(ic, 20)), h('div', {}, h('b', {}, title), h('span', {}, body)));
+  const inside = h('section.sec.first', { id: 'inside' },
+    h('div.kicker.rv', {}, 'The game'),
+    h('h2.h2.rv', { html: 'Everything a road needs. <em>Nothing to install.</em>' }),
+    h('div.rows', {},
+      feature('wheel', 'Real driving feel', 'Pedals, steering wheel or buttons. Reverse, handbrake, horn and three cameras.', 0),
+      feature('wrench', 'Your garage', 'Repaint, add underglow and upgrade engine, brakes and tyres with coins you earn.', 1),
+      feature('flag', 'Free ride or race', 'Cruise and earn for clean overtakes, or race three rivals for a lap.', 2),
+      feature('music', 'Your soundtrack', 'Play your YouTube playlist while you drive. Load your own horn sound.', 3),
     ),
   );
 
-  const fleet = h('section.sec', { id: 'fleet' },
-    h('div.sec-head.reveal', {}, h('div.eyebrow', {}, 'The fleet'), h('h2', {}, 'Three ways to rule the road.')),
-    h('div.fleet', {}, ...VEHICLES.map((v, i) => h('article.v.reveal', { style: `--d:${i * 0.08}s` },
-      h('div.ph', {}, h('img', { src: STUDIO[v.id], alt: v.name, loading: 'lazy' })),
-      h('div.tx', {}, h('h3', {}, v.name), h('p', {}, v.tagline),
-        h('div.specs', {}, h('div', {}, h('b', {}, `${v.topSpeed}`), 'km/h top'), h('div', {}, h('b', {}, `${v.length} m`), 'length'), h('div', {}, h('b', {}, v.tintable ? 'Yes' : 'Fixed'), 'repaint'))),
+  const fleet = h('section.sec', {},
+    h('div.kicker.rv', {}, 'The fleet'),
+    h('h2.h2.rv', { html: 'Three ways to <em>rule the road.</em>' }),
+    h('div.rail', {}, ...VEHICLES.map((v, i) => h('button.vcard', { type: 'button', onclick: onPlay },
+      h('div.n', {}, `0${i + 1}`),
+      h('div.giant', { 'aria-hidden': 'true' }, v.big),
+      h('img', { src: v.cutout, alt: v.name, loading: 'lazy' }),
+      h('div.tx', {}, h('b', {}, v.name),
+        h('div.stats', {}, h('div', {}, h('span', {}, 'Top speed'), h('b', {}, `${v.topSpeed} km/h`)), h('div', {}, h('span', {}, 'Length'), h('b', {}, `${v.length} m`)))),
     ))),
   );
 
-  const cityCard = (c: (typeof CITIES)[number]) => h('button.city', { style: `background-image:url(${c.image})`, onclick: onPlay },
-    h('span.chip.km', {}, `${c.km} km loop`),
-    h('div.tx', {}, h('span', {}, c.region), h('b', {}, c.name), h('p', {}, c.blurb)));
-  const cities = h('section.sec', { id: 'cities' },
-    h('div.sec-head.reveal', {}, h('div.eyebrow', {}, 'The map'), h('h2', {}, 'Five cities. One island.'), h('p', {}, 'From Colombo traffic to the Galle coast and the sacred city of Anuradhapura. More towns are on the way.')),
-    h('div.rail.reveal', {}, ...CITIES.map(cityCard)),
+  const cities = h('section.sec', {},
+    h('div.kicker.rv', {}, 'The map'),
+    h('h2.h2.rv', { html: 'Five cities. <em>One island.</em>' }),
+    h('div.rail', {}, ...CITIES.map((c) => h('button.ccard', { type: 'button', style: `background-image:url(${c.image})`, onclick: onPlay },
+      h('span.tag', {}, icon('road', 14), `${c.km} km`),
+      h('div.tx', {}, h('span', {}, c.region), h('b', {}, c.name)),
+    ))),
   );
 
-  const music = h('section.sec', { id: 'music' },
-    h('div.split', {},
-      h('div.big.reveal', {}, h('div.eyebrow', { style: 'color:#ffb9a8' }, 'Sound'), h('h3', {}, 'Drive to your own soundtrack.'),
-        h('p', {}, 'Paste a YouTube playlist and it plays in a small player while you drive. The engine note rises with your speed, and the horn is yours to choose.')),
-      h('div.col', {},
-        h('div.mini.reveal', { style: '--d:.08s' }, h('h3', {}, icon('upload', 20), 'Bring your own horn'), h('p', {}, 'Load any short sound from your phone in the garage and use it as your horn.')),
-        h('div.mini.reveal', { style: '--d:.16s' }, h('h3', {}, icon('trophy', 20), 'Progress that stays'), h('p', {}, 'Coins, upgrades, distance and best lap times are saved on your device. Sign-in and leaderboards are coming.')),
-      ),
-    ),
+  const band = h('section.band.rv', {},
+    h('h3', {}, 'The road is waiting.'),
+    h('p', {}, 'Free to play. No download. Your progress stays on this device; sign-in and leaderboards are coming.'),
+    cta('Play now', onPlay, 'dark'),
   );
 
-  const final = h('section.final.reveal', {}, h('h2', {}, 'The road is waiting.'), play('primary lg'));
   const foot = h('footer.foot', {}, wordmark(), h('div.spacer'),
-    h('a', { href: '/privacy.html', target: '_blank' }, 'Privacy'), h('a', { href: '/terms.html', target: '_blank' }, 'Terms'), h('a', { href: '/credits.html', target: '_blank' }, 'Credits'),
-    h('span', {}, 'All vehicles and places are generic or fictional depictions.'));
+    h('a', { href: '/privacy.html', target: '_blank' }, 'Privacy'), h('a', { href: '/terms.html', target: '_blank' }, 'Terms'), h('a', { href: '/credits.html', target: '_blank' }, 'Credits'));
 
-  const page = h('div.screen.landing', {}, nav, hero, features, fleet, cities, music, final, foot);
-  page.addEventListener('scroll', () => {
-    nav.classList.toggle('solid', page.scrollTop > 40);
-    if (page.scrollTop < window.innerHeight) bg.style.translate = `0 ${page.scrollTop * 0.25}px`;
-  }, { passive: true });
+  const page = h('div.screen.landing', {}, welcome, inside, fleet, cities, band, foot);
   mount(page);
-  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: page, threshold: 0.12 });
-  page.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: page, threshold: 0.15 });
+  page.querySelectorAll('.rv').forEach((el) => io.observe(el));
+  // hero parallax
+  const img = welcome.querySelector<HTMLElement>('.heroimg')!, giant = welcome.querySelector<HTMLElement>('.giant')!;
+  page.addEventListener('scroll', () => {
+    const y = page.scrollTop;
+    if (y > page.clientHeight) return;
+    img.style.translate = `-50% ${y * 0.35}px`;
+    giant.style.translate = `-50% ${y * 0.6}px`;
+  }, { passive: true });
 }

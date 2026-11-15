@@ -4,39 +4,36 @@ import { environment, setStage, type Stage } from '../core/renderer';
 import { GLOWS, HORNS, TINTS, UPGRADES, VEHICLES, type VehicleId } from '../game/data';
 import { loadModel, type LoadedModel } from '../game/models';
 import { buyUpgrade, progress, save, saveBlob, stats } from '../game/progress';
-import { btn, fmtNum, h, mount, toast } from './dom';
+import { fmtNum, h, mount, setBackdrop, toast } from './dom';
 import { icon } from './icons';
+import { cta } from './landing';
 
-/** 3D showroom: dark floor, red light bars, the vehicle on a slow turntable. */
+/** 3D turntable on a transparent canvas: the CSS gradient and giant type show through. */
 class Showroom implements Stage {
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(32, 16 / 9, 0.1, 200);
+  camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
   private pivot = new THREE.Group();
   private model: LoadedModel | null = null;
   private glow: THREE.Mesh;
   private token = 0;
-  spin = 0.25; yaw = -0.7; private len = 10;
+  spin = 0.3; yaw = -0.6; private len = 10; private h = 3; private intro = 0;
 
   constructor() {
     const s = this.scene;
-    s.background = new THREE.Color(0x09090b);
-    s.fog = new THREE.Fog(0x09090b, 26, 70);
-    s.environment = environment(); s.environmentIntensity = 0.9;
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(60, 48), new THREE.MeshStandardMaterial({ color: 0x141417, roughness: 0.32, metalness: 0.7 }));
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; s.add(floor);
-    const key = new THREE.SpotLight(0xffffff, 900, 60, 0.6, 0.6); key.position.set(6, 16, 10); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); s.add(key, key.target);
-    const rim = new THREE.DirectionalLight(0xff5040, 2.2); rim.position.set(-10, 5, -8); s.add(rim);
-    const fill = new THREE.DirectionalLight(0x9db8ff, 0.9); fill.position.set(10, 4, -6); s.add(fill);
-    const barMat = new THREE.MeshBasicMaterial({ color: 0xff3528 });
-    for (const [x, z, r] of [[-14, -12, 0.5], [14, -12, -0.5], [0, -18, 0]] as const) {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(11, 0.16, 0.16), barMat); b.position.set(x, 5.5, z); b.rotation.y = r; s.add(b);
-      const b2 = b.clone(); b2.position.y = 0.1; s.add(b2);
-    }
+    s.environment = environment(); s.environmentIntensity = 0.95;
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(14, 40), new THREE.ShadowMaterial({ opacity: 0.45 }));
+    shadow.rotation.x = -Math.PI / 2; shadow.receiveShadow = true; s.add(shadow);
+    const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(4, 12, 9); key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 });
+    s.add(key);
+    const rim = new THREE.DirectionalLight(0xff4a3a, 3); rim.position.set(-8, 4, -8); s.add(rim);
+    const rim2 = new THREE.DirectionalLight(0xff6a50, 2); rim2.position.set(8, 3, -6); s.add(rim2);
+    s.add(new THREE.HemisphereLight(0xfff0ea, 0x4a1012, 0.8));
     const cv = document.createElement('canvas'); cv.width = cv.height = 64;
     const c = cv.getContext('2d')!, g = c.createRadialGradient(32, 32, 2, 32, 32, 32);
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64);
     this.glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.glow.rotation.x = -Math.PI / 2; this.glow.position.y = 0.05; this.glow.visible = false;
+    this.glow.rotation.x = -Math.PI / 2; this.glow.position.y = 0.04; this.glow.visible = false;
     this.pivot.add(this.glow);
     s.add(this.pivot);
   }
@@ -47,7 +44,7 @@ class Showroom implements Stage {
     const m = await loadModel(def.model);
     if (t !== this.token) { m.dispose(); return; }
     if (this.model) { this.pivot.remove(this.model.root); this.model.dispose(); }
-    this.model = m; this.len = def.length;
+    this.model = m; this.len = def.length; this.h = m.size.y; this.intro = 1;
     this.pivot.add(m.root);
     this.glow.scale.set(def.width * 2.6, def.length * 1.4, 1);
     this.paint(id);
@@ -60,12 +57,17 @@ class Showroom implements Stage {
   }
   update(dt: number) {
     this.yaw += this.spin * dt;
-    this.pivot.rotation.y = this.yaw;
-    const portrait = this.camera.aspect < 1;
-    const d = this.len * (portrait ? 2.5 : 1.25) + 6;
-    this.camera.position.set(portrait ? 0 : -this.len * 0.12, 2.2 + this.len * 0.13, d);
-    const low = !portrait && window.innerHeight < 480; // short phones: lift the vehicle above the dock
-    this.camera.lookAt(portrait ? 0 : -this.len * 0.12, this.len * 0.1 + (portrait ? -this.len * 0.25 : low ? -this.len * 0.11 : 0.2), 0);
+    this.intro = Math.max(0, this.intro - dt * 1.6);
+    const e = this.intro * this.intro;
+    this.pivot.rotation.y = this.yaw - e * 1.2;
+    this.pivot.position.x = e * this.len * 0.9;
+    // frame the whole vehicle whatever the canvas shape
+    const a = this.camera.aspect, vf = THREE.MathUtils.degToRad(this.camera.fov);
+    const span = Math.max(this.len * 0.82, this.h * 1.3);
+    const fit = (span / 2) / Math.tan(vf / 2) / Math.min(1, a);
+    const d = fit * 0.98 + this.len * 0.12;
+    this.camera.position.set(0, this.h * 0.55 + d * 0.2, d);
+    this.camera.lookAt(0, this.h * 0.42, 0);
   }
 }
 
@@ -74,48 +76,66 @@ let room: Showroom | null = null;
 export function showGarage(onBack: () => void, onNext: () => void): void {
   room ??= new Showroom();
   const stage = room;
-  setStage(stage);
+  document.body.className = 'garage';
   let idx = Math.max(0, VEHICLES.findIndex((v) => v.id === progress.vehicle));
-  let tab: 'paint' | 'tune' | 'horn' | 'glow' = 'tune';
-
-  const coins = h('span.num');
-  const info = h('div.g-info');
-  const body = h('div.g-body');
-  const seg = h('div.seg');
-  const file = h<HTMLInputElement>('input', { type: 'file', accept: 'audio/*', style: 'display:none' });
+  let tab: 'tune' | 'paint' | 'glow' | 'horn' = 'tune';
   const cur = () => VEHICLES[idx];
 
-  const bar = (label: string, v: number) => h('div.bar', {}, h('span', {}, label), h('div.t', {}, h('i', { style: `width:${Math.min(100, v * 100)}%` })), h('b.num', {}, String(Math.round(Math.min(1, v) * 100))));
-  const renderInfo = () => {
-    const v = cur(), s = stats(v.id).bars;
-    info.replaceChildren(
-      h('div.idx', {}, `0${idx + 1} / 0${VEHICLES.length}`), h('h2', {}, v.name), h('p', {}, v.tagline),
-      h('div.bars', {}, bar('Top speed', s.speed), bar('Acceleration', s.accel), bar('Braking', s.braking), bar('Handling', s.handling)));
+  const giant = h('div.giant', { 'aria-hidden': 'true' });
+  setBackdrop(h('div.gbg', {}, giant, h('div.halo')));
+  const coins = h('span.num');
+  const name = h('div.vname');
+  const statRow = h('div.stats');
+  const dots = h('div.dots');
+  const chips = h('div.chips');
+  const opts = h('div.opts');
+  const file = h<HTMLInputElement>('input', { type: 'file', accept: 'audio/*', style: 'display:none' });
+
+  const renderHead = () => {
+    const v = cur(), s = stats(v.id);
+    giant.textContent = v.big;
+    giant.className = 'giant';
+    giant.style.fontSize = `${Math.min(40, 92 / (v.big.length * 0.46))}cqw`;
+    giant.style.animation = 'none'; void giant.offsetWidth; giant.style.animation = '';
+    name.replaceChildren(h('h2', {}, v.name), h('span.idx', {}, `0${idx + 1} / 0${VEHICLES.length}`));
+    statRow.replaceChildren(
+      h('div', {}, h('span', {}, 'Top speed'), h('b.num', {}, `${Math.round(s.top)} km/h`)),
+      h('div', {}, h('span', {}, '0-60'), h('b.num', {}, `${(60 / 3.6 / s.accel).toFixed(1)} s`)),
+      h('div', {}, h('span', {}, 'Grip'), h('b.num', {}, `${Math.round(s.bars.handling * 100)}`)));
+    dots.replaceChildren(...VEHICLES.map((_, i) => h('i', { class: i === idx ? 'on' : '' })));
     coins.textContent = fmtNum(progress.coins);
   };
-  const renderBody = () => {
+  const renderOpts = () => {
     const v = cur(), g = progress.garage[v.id];
-    seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.getAttribute('data-t') === tab));
+    chips.querySelectorAll('.chip').forEach((b) => b.classList.toggle('on', b.getAttribute('data-t') === tab));
+    const st = (i: number) => `--i:${i}`;
     if (tab === 'paint') {
-      if (!v.tintable) { body.replaceChildren(h('p', { style: 'color:var(--mute);align-self:center;padding:0 10px;font-size:14px' }, 'The red route bus keeps its classic livery.')); return; }
-      body.replaceChildren(...TINTS.map((c) => h('button', { class: `sw${g.tint === c ? ' on' : ''}`, style: `background:${c}`, 'aria-label': c, onclick: () => { g.tint = c; save(); sfx.select(); stage.paint(v.id); renderBody(); } })));
+      if (!v.tintable) { opts.replaceChildren(h('p.note', {}, 'The route bus keeps its classic red livery.')); return; }
+      opts.replaceChildren(...TINTS.map((c, i) => h('button', { class: `sw${g.tint === c ? ' on' : ''}`, style: `background:${c};${st(i)}`, 'aria-label': `Paint ${c}`,
+        onclick: () => { g.tint = c; save(); sfx.select(); stage.paint(v.id); renderOpts(); } })));
     } else if (tab === 'glow') {
-      body.replaceChildren(...GLOWS.map((c) => h('button', { class: `sw${c ? '' : ' none'}${g.glow === c ? ' on' : ''}`, style: c ? `background:${c};box-shadow:0 0 18px ${c}` : '', 'aria-label': c || 'none', onclick: () => { g.glow = c; save(); sfx.select(); stage.paint(v.id); renderBody(); } }, c ? null : icon('close', 16))));
+      opts.replaceChildren(...GLOWS.map((c, i) => h('button', { class: `sw${c ? '' : ' none'}${g.glow === c ? ' on' : ''}`, style: `${c ? `background:${c};box-shadow:0 0 22px ${c}${g.glow === c ? ',0 0 0 3px #fff' : ''}` : ''};${st(i)}`, 'aria-label': c ? `Underglow ${c}` : 'No underglow',
+        onclick: () => { g.glow = c; save(); sfx.select(); stage.paint(v.id); renderOpts(); } }, c ? null : icon('close', 18))));
     } else if (tab === 'tune') {
-      body.replaceChildren(...UPGRADES.map((u) => {
+      opts.replaceChildren(...UPGRADES.map((u, i) => {
         const lv = g.up[u.id], cost = u.costs[lv];
-        const buy = cost === undefined ? h('span.chip.buy', { style: 'justify-content:center' }, icon('check', 14), 'Maxed')
-          : btn(`${progress.coins >= cost ? 'primary' : 'ghost'} sm buy`, `Upgrade  ·  ${fmtNum(cost)}`, () => {
-            if (buyUpgrade(v.id, u.id)) { sfx.buy(); renderInfo(); renderBody(); } else { sfx.deny(); toast('Not enough coins yet. Drive to earn more.'); }
-          });
-        return h('div.up', {}, h('div.ic', {}, icon(u.id === 'engine' ? 'bolt' : u.id === 'brakes' ? 'disc' : 'tyre')),
-          h('b', {}, u.name, h('span.lv', {}, ...[0, 1, 2].map((i) => h('i', { class: i < lv ? 'on' : '' })))), h('span', {}, u.desc), buy);
+        const card = h('button', { class: `ocard${cost !== undefined && progress.coins < cost ? ' cant' : ''}`, style: st(i) },
+          h('b', {}, icon(u.id === 'engine' ? 'bolt' : u.id === 'brakes' ? 'disc' : 'tyre', 17), u.name),
+          h('div.lv', {}, ...[0, 1, 2].map((k) => h('i', { class: k < lv ? 'on' : '' }))),
+          h('span.price', {}, cost === undefined ? 'Fully upgraded' : `${fmtNum(cost)} coins`));
+        card.addEventListener('click', () => {
+          if (cost === undefined) return;
+          if (buyUpgrade(v.id, u.id)) { sfx.buy(); toast(`${u.name} upgraded to level ${lv + 1}`); renderHead(); renderOpts(); }
+          else { sfx.deny(); toast('Not enough coins yet. Drive to earn more.'); }
+        });
+        return card;
       }));
     } else {
-      body.replaceChildren(...HORNS.map((hn) => {
+      opts.replaceChildren(...HORNS.map((hn, i) => {
         const owned = progress.horns.includes(hn.id);
-        const label = hn.id === 'custom' ? (hasCustomHorn() ? 'Tap to use, hold to replace' : 'Load a sound file') : owned ? 'Owned' : `${fmtNum(hn.cost)} coins`;
-        const card = h('button', { class: `hornc${g.horn === hn.id ? ' on' : ''}` }, h('b', {}, hn.name), h('span', {}, icon(hn.id === 'custom' ? 'upload' : owned ? 'horn' : 'lock', 14), label));
+        const sub = hn.id === 'custom' ? (hasCustomHorn() ? 'Tap to use. Hold to replace' : 'Load a sound file') : owned ? 'Tap to play' : `${fmtNum(hn.cost)} coins`;
+        const card = h('button', { class: `ocard${g.horn === hn.id ? ' on' : ''}`, style: st(i) },
+          h('b', {}, icon(hn.id === 'custom' ? 'upload' : owned ? 'horn' : 'lock', 16), hn.name), h('span', {}, sub));
         let held = 0;
         card.addEventListener('pointerdown', () => { held = Date.now(); });
         card.addEventListener('click', async () => {
@@ -125,7 +145,7 @@ export function showGarage(onBack: () => void, onNext: () => void): void {
             if (progress.coins < hn.cost) { sfx.deny(); toast('Not enough coins yet.'); return; }
             progress.coins -= hn.cost; progress.horns.push(hn.id); sfx.buy();
           }
-          g.horn = hn.id; save(); renderInfo(); renderBody();
+          g.horn = hn.id; save(); renderHead(); renderOpts();
           const off = horn(hn.id); setTimeout(off, 700);
         });
         return card;
@@ -139,29 +159,36 @@ export function showGarage(onBack: () => void, onNext: () => void): void {
     const data = await f.arrayBuffer();
     if (!(await setCustomHorn(data))) { toast('That file could not be read as audio.'); return; }
     await saveBlob('horn', data).catch(() => {});
-    progress.garage[cur().id].horn = 'custom'; save(); renderBody();
+    progress.garage[cur().id].horn = 'custom'; save(); renderOpts();
     toast('Your horn is ready.'); horn('custom');
   });
 
-  const go = (d: number) => { idx = (idx + d + VEHICLES.length) % VEHICLES.length; progress.vehicle = cur().id; save(); sfx.select(); stage.show(cur().id); renderInfo(); renderBody(); };
+  const go = (d: number) => { idx = (idx + d + VEHICLES.length) % VEHICLES.length; progress.vehicle = cur().id; save(); sfx.select(); stage.show(cur().id); renderHead(); renderOpts(); };
   for (const [t, label, ic] of [['tune', 'Performance', 'bolt'], ['paint', 'Paint', 'paint'], ['glow', 'Underglow', 'glow'], ['horn', 'Horn', 'horn']] as const)
-    seg.append(h('button', { 'data-t': t, onclick: () => { tab = t; sfx.tap(); renderBody(); } }, icon(ic, 16), label));
+    chips.append(h('button', { class: 'chip', 'data-t': t, onclick: () => { tab = t; sfx.tap(); renderOpts(); } }, icon(ic, 16), label));
 
-  const screen = h('div.screen.garage', {},
-    h('div.top', {}, btn('glass icon', null, onBack, 'chevL'), h('h1', {}, 'Garage'), h('div.steps', {}, h('i.on'), h('i'), h('i')), h('div.spacer'), h('div.pill', {}, icon('coin', 18), coins)),
-    info,
-    h('div.g-arrow.l', {}, btn('glass icon lg', null, () => go(-1), 'chevL')),
-    h('div.g-arrow.r', {}, btn('glass icon lg', null, () => go(1), 'chevR')),
-    h('div.g-dock', {}, h('div.g-panel', {}, seg, body), h('div.g-go', {}, btn('primary lg', 'Choose city', onNext, 'right', true))),
+  const stageEl = h('div.stagez', {},
+    h('button.cbtn.arrow.l', { 'aria-label': 'Previous vehicle', onclick: () => go(-1) }, icon('chevL', 22)),
+    h('button.cbtn.arrow.r', { 'aria-label': 'Next vehicle', onclick: () => go(1) }, icon('chevR', 22)),
+    dots);
+  // drag to rotate, swipe to change vehicle
+  let drag: { x: number; x0: number; t: number } | null = null;
+  stageEl.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button')) return; drag = { x: e.clientX, x0: e.clientX, t: Date.now() }; stage.spin = 0; });
+  stageEl.addEventListener('pointermove', (e) => { if (drag) { stage.yaw += (e.clientX - drag.x) * 0.01; drag.x = e.clientX; } });
+  const end = (e: PointerEvent) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0, fast = Date.now() - drag.t < 300;
+    if (fast && Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+    drag = null; stage.spin = 0.3;
+  };
+  stageEl.addEventListener('pointerup', end); stageEl.addEventListener('pointercancel', end);
+
+  mount(h('div.screen.garage', {},
+    h('div.bar', {}, h('button.cbtn', { 'aria-label': 'Back', onclick: () => { sfx.back(); onBack(); } }, icon('chevL', 22)), h('span.ttl', {}, 'Garage'), h('div.spacer'), h('div.coins', {}, icon('coin', 18), coins)),
+    stageEl,
+    h('div.info', {}, name, statRow, chips, opts, cta('Choose a city', onNext)),
     file,
-  );
-  // drag to rotate the vehicle
-  let drag: number | null = null;
-  screen.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button, .g-panel')) return; drag = e.clientX; stage.spin = 0; });
-  screen.addEventListener('pointermove', (e) => { if (drag !== null) { stage.yaw += (e.clientX - drag) * 0.008; drag = e.clientX; } });
-  const end = () => { if (drag !== null) { drag = null; stage.spin = 0.25; } };
-  screen.addEventListener('pointerup', end); screen.addEventListener('pointercancel', end);
-
-  mount(screen);
-  stage.show(cur().id); renderInfo(); renderBody();
+  ));
+  setStage(stage);
+  stage.show(cur().id); renderHead(); renderOpts();
 }

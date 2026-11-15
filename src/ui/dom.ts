@@ -20,6 +20,12 @@ export function mount(screen: HTMLElement): void {
   document.getElementById('ui')!.replaceChildren(screen);
 }
 
+/** Layer behind the 3D canvas (gradients, giant type). */
+export function setBackdrop(el: HTMLElement | null): void {
+  const b = document.getElementById('backdrop')!;
+  if (el) b.replaceChildren(el); else b.replaceChildren();
+}
+
 export function toast(msg: string, ms = 2400): void {
   const el = h('div.toast', {}, msg);
   document.getElementById('toasts')!.append(el);

@@ -6,6 +6,8 @@ const P: Record<string, string> = {
   left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   chevL: '<path d="M15 5l-7 7 7 7"/>',
   chevR: '<path d="M9 5l7 7-7 7"/>',
+  chevD: '<path d="M5 9l7 7 7-7"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 20.5c1.6-3.8 4.6-5.5 8-5.5s6.4 1.7 8 5.5"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
