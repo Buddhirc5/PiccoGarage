@@ -328,3 +328,9 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
   .results .body { gap: 10px; }
   .results .title { font-size: 28px; }
 }
+
+/* minimised music: the video keeps playing off-screen, only a small pill shows */
+.player.mini { width: auto; left: 50%; bottom: calc(16px + var(--sb)); border-radius: 999px; cursor: pointer; }
+.player.mini .vid { position: fixed; left: -9999px; top: 0; width: 200px; height: 112px; }
+.player.mini .row span::before { content: '♪  '; }
+.player.mini .row span { color: #fff; font-weight: 600; }

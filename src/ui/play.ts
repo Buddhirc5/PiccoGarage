@@ -151,7 +151,7 @@ export async function startDrive(flow: Flow): Promise<void> {
   // music (YouTube)
   const playerBox = h('div.player.hglass', { style: 'display:none' });
   const vid = h('div.vid');
-  playerBox.append(vid, h('div.row', {}, h('span', {}, 'Tap play in the video to start. Music keeps playing while you drive.'),
+  playerBox.append(vid, h('div.row', {}, h('span', {}, 'Tap play, then drive. The player hides itself.'),
     h('button', { 'aria-label': 'Close music', onclick: () => stopMusic() }, icon('close', 16))));
   const stopMusic = () => { music?.destroy(); music = null; playerBox.style.display = 'none'; };
   const startMusic = (src: string) => {
@@ -160,10 +160,16 @@ export async function startDrive(flow: Flow): Promise<void> {
     stopMusic();
     playerBox.style.display = '';
     music = createMusic(vid, parsed);
+    setMini(false);
   };
+  // after the first press of the accelerator the player shrinks to a pill; music keeps playing
+  const setMini = (on: boolean) => playerBox.classList.toggle('mini', on);
+  gas.addEventListener('pointerdown', () => { if (music) setMini(true); });
+  window.addEventListener('keydown', (e) => { if (music && (e.code === 'ArrowUp' || e.code === 'KeyW')) setMini(true); });
+  playerBox.addEventListener('click', (e) => { if (playerBox.classList.contains('mini') && !(e.target as HTMLElement).closest('button')) setMini(false); });
   const openMusic = () => {
     const src = progress.playlist || DEFAULT_PLAYLIST;
-    if (music) { stopMusic(); return; }
+    if (music) { setMini(!playerBox.classList.contains('mini')); return; }
     if (src) startMusic(src); else openPause(true);
   };
 

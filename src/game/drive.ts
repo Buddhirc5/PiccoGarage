@@ -289,6 +289,16 @@ export class Drive implements Stage {
         m.speed += THREE.MathUtils.clamp(want - m.speed, -12 * dt, 3 * dt);
       }
       m.s += m.dir * m.speed * dt;
+      // NPC vs NPC: nobody drives through anybody. The one behind stops at the bumper.
+      for (const o of this.movers) {
+        if (o === m || Math.abs(o.lat - m.lat) > 1.9) continue;
+        const ahead = wrap(o.s - m.s, L) * m.dir, minGap = (o.len + m.len) / 2 + 0.6;
+        if (ahead > 0 && ahead < minGap) {
+          m.s = o.s - m.dir * minGap;
+          if (o.dir === m.dir) m.speed = Math.min(m.speed, o.speed);
+          else { m.speed = 0; o.speed = 0; } // head-on: both stop, then the lane-change logic clears it
+        }
+      }
       tr.at(m.s, m.lat, m.pos);
       m.heading = tr.heading(m.s) + (m.dir < 0 ? Math.PI : 0);
       m.model.root.position.copy(m.pos);
@@ -310,7 +320,7 @@ export class Drive implements Stage {
           const closing = this.v * Math.sign(dz) - m.speed * same * Math.sign(dz);
           if (closing > 0) { if (this.bumpCd <= 0 && closing > 2) this.bump(0.35); else this.v = m.speed * same * 0.9; }
         }
-        if (!m.rival) m.speed *= 0.5;
+        m.speed *= m.rival ? 0.7 : 0.5;
         m.behind = dz < 0; // no overtake credit after a contact
         continue;
       }
