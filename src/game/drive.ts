@@ -339,6 +339,7 @@ export class Drive implements Stage {
     const f = this.tmp.set(Math.sin(this.heading), 0, Math.cos(this.heading));
     const sp = Math.min(1, Math.abs(this.v) / (this.st.top / 3.6));
     const cam = this.camera, L = this.def.length, H = this.me.size.y;
+    this.me.root.visible = this.camMode !== 1;
     if (this.camMode === 1) {
       const e = this.def.eye;
       cam.position.copy(this.pos).addScaledVector(f, L / 2 + 0.15).add(this.tmp2.set(f.z * e[0], e[1], -f.x * e[0]));

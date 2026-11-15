@@ -151,7 +151,7 @@ export async function startDrive(flow: Flow): Promise<void> {
   // music (YouTube)
   const playerBox = h('div.player.hglass', { style: 'display:none' });
   const vid = h('div.vid');
-  playerBox.append(vid, h('div.row', {}, h('span', {}, 'Tap play, then drive. The player hides itself.'),
+  playerBox.append(vid, h('div.row', {}, h('span', {}, 'Tap play. It hides when you drive.'),
     h('button', { 'aria-label': 'Close music', onclick: () => stopMusic() }, icon('close', 16))));
   const stopMusic = () => { music?.destroy(); music = null; playerBox.style.display = 'none'; };
   const startMusic = (src: string) => {
@@ -163,9 +163,17 @@ export async function startDrive(flow: Flow): Promise<void> {
     setMini(false);
   };
   // after the first press of the accelerator the player shrinks to a pill; music keeps playing
-  const setMini = (on: boolean) => playerBox.classList.toggle('mini', on);
-  gas.addEventListener('pointerdown', () => { if (music) setMini(true); });
-  window.addEventListener('keydown', (e) => { if (music && (e.code === 'ArrowUp' || e.code === 'KeyW')) setMini(true); });
+  // The video is only shown long enough to press play, then it shrinks to a pill.
+  // Hidden with inline styles (1px, invisible) so it keeps playing on iPhone.
+  let miniTimer = 0;
+  const setMini = (on: boolean) => {
+    clearTimeout(miniTimer);
+    playerBox.classList.toggle('mini', on);
+    vid.style.cssText = on ? 'position:absolute;width:2px;height:2px;opacity:0.01;pointer-events:none;overflow:hidden' : '';
+    if (!on) miniTimer = window.setTimeout(() => setMini(true), 9000);
+  };
+  queueMicrotask(() => root.addEventListener('pointerdown', (e) => { if (music && !playerBox.contains(e.target as Node) && !(e.target as HTMLElement).closest('[aria-label=Music]')) setMini(true); }, true));
+  window.addEventListener('keydown', () => { if (music) setMini(true); });
   playerBox.addEventListener('click', (e) => { if (playerBox.classList.contains('mini') && !(e.target as HTMLElement).closest('button')) setMini(false); });
   const openMusic = () => {
     const src = progress.playlist || DEFAULT_PLAYLIST;
@@ -173,11 +181,13 @@ export async function startDrive(flow: Flow): Promise<void> {
     if (src) startMusic(src); else openPause(true);
   };
 
+  const cockpit = h('div.cockpit', { style: `background-image:url(/assets/img/cockpit_${veh.id === 'tuk' ? 'tuk' : 'bus'}.webp)` });
   const root = h('div.screen.hud', {},
-    h('div.tl', {}, hbtn('pause', 'Pause', () => openPause()), mini),
+    cockpit,
+    h('div.tl', {}, h('div.tiny', {}, hbtn('pause', 'Pause', () => openPause()), musicB, camB), mini),
     chips, h('div.tr', {}, speedo),
     steerBox,
-    h('div.br', {}, h('div.side', {}, musicB, camB), h('div.side', {}, hornB, gearB), brake, gas),
+    h('div.br', {}, h('div.side', {}, hornB, gearB), brake, gas),
     flash, count, playerBox,
     h('div.rotate', {}, icon('rotate', 48), h('h2', {}, 'Turn your phone'), h('p', {}, 'Driving is built for landscape. Rotate to take the wheel.')),
   );
@@ -208,6 +218,7 @@ export async function startDrive(flow: Flow): Promise<void> {
     valRing.style.strokeDasharray = `${C * ARC * Math.min(1, s.kmh / (veh.topSpeed * 1.25))} ${C}`;
     rpmRing.style.strokeDasharray = `${C2 * ARC * s.rpm} ${C2}`;
     gearEl.textContent = s.gear;
+    root.classList.toggle('incab', drive.camMode === 1);
     if (s.race) { chipA.textContent = `P${s.race.pos} / ${s.race.total}`; chipB.textContent = fmtTime(s.race.time); }
     else { chipA.replaceChildren(icon('coin', 16), String(s.coins)); chipB.textContent = `${s.km.toFixed(2)} km`; }
     const cd = Math.ceil(s.countdown);

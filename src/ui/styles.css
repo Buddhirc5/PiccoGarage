@@ -334,3 +334,23 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
 .player.mini .vid { position: fixed; left: -9999px; top: 0; width: 200px; height: 112px; }
 .player.mini .row span { font-size: 0; }
 .player.mini .row span::after { content: '♪  Music playing · tap to show'; font-size: 12.5px; color: #fff; font-weight: 600; }
+
+/* HUD v3: compact top-left icon row, small minimap, cockpit overlay */
+.hud .tl { flex-direction: column; gap: 8px; }
+.tiny { display: flex; gap: 6px; }
+.tiny .hbtn { width: 36px; height: 36px; }
+.tiny .hbtn .ico { width: 17px; height: 17px; }
+.minimap { width: 84px; height: 84px; border-radius: 18px; }
+.hpill { height: 32px; font-size: 13px; padding: 0 12px; }
+.speedo { width: 112px; height: 112px; } .speedo .rd b { font-size: 34px; }
+.side .hbtn { width: 46px; height: 46px; }
+.cockpit { position: absolute; inset: 0; background: center bottom / cover no-repeat; pointer-events: none !important; display: none; }
+.hud.incab .cockpit { display: block; }
+.hud.incab .tc, .hud.incab .minimap { opacity: .85; }
+.player { width: 200px; bottom: auto; top: calc(56px + var(--st)); left: auto; right: max(18px, var(--sr)); transform: none; }
+.player.mini { width: auto; top: auto; bottom: calc(10px + var(--sb)); left: 50%; right: auto; transform: translateX(-50%); }
+.player.mini .row { padding: 2px 4px 2px 12px; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .minimap { width: 72px; height: 72px; } .speedo { width: 96px; height: 96px; } .speedo .rd b { font-size: 28px; }
+  .tiny .hbtn { width: 34px; height: 34px; }
+}
