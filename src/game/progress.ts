@@ -18,7 +18,7 @@ function fresh(): Progress {
   const garage = {} as Progress['garage'];
   for (const v of VEHICLES) garage[v.id] = { tint: v.defaultTint, glow: '', horn: v.horn, up: { engine: 0, brakes: 0, tyres: 0 } };
   return { coins: 2500, xp: 0, km: 0, drives: 0, overtakes: 0, wins: 0, vehicle: 'pbus', city: 'colombo', mode: 'free', garage,
-    horns: ['air', 'steady', 'beep', 'custom'], best: {}, controls: 'buttons', playlist: '' };
+    horns: ['air', 'steady', 'beep', 'twin', 'custom'], best: {}, controls: 'buttons', playlist: '' };
 }
 
 export const progress: Progress = (() => {

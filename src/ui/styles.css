@@ -320,3 +320,11 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
   .scrim { place-items: start center; } .sheet { padding: 16px 18px; gap: 9px; } .sheet h2 { font-size: 22px; } .rowi { padding: 7px 0; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .01s !important; } }
+
+@media (orientation: landscape) and (max-height: 560px) {
+  body:not(.driving) #app { width: min(100vw, 760px); }
+  .results .giant { font-size: 24cqh; margin-top: 8px; }
+  .results .giant.t { font-size: 20cqh; margin-top: 8px; }
+  .results .body { gap: 10px; }
+  .results .title { font-size: 28px; }
+}

@@ -27,8 +27,10 @@ export function setBackdrop(el: HTMLElement | null): void {
 }
 
 export function toast(msg: string, ms = 2400): void {
+  const box = document.getElementById('toasts')!;
+  if (box.lastElementChild?.textContent === msg) return; // no stacking of the same message
   const el = h('div.toast', {}, msg);
-  document.getElementById('toasts')!.append(el);
+  box.replaceChildren(el);
   setTimeout(() => el.remove(), ms);
 }
 

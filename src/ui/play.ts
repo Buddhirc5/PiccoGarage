@@ -150,26 +150,21 @@ export async function startDrive(flow: Flow): Promise<void> {
 
   // music (YouTube)
   const playerBox = h('div.player.hglass', { style: 'display:none' });
-  const vid = h('div.vid'), title = h('span', {}, 'Music');
-  let playing = false;
-  const ppBtn = h('button', { 'aria-label': 'Play or pause', onclick: () => (playing ? music?.pause() : music?.play()) }, icon('pause', 16));
-  playerBox.append(vid, h('div.row', {}, h('button', { 'aria-label': 'Previous', onclick: () => music?.prev() }, icon('prev', 16)), ppBtn, h('button', { 'aria-label': 'Next', onclick: () => music?.next() }, icon('next', 16)), title,
+  const vid = h('div.vid');
+  playerBox.append(vid, h('div.row', {}, h('span', {}, 'Tap play in the video to start. Music keeps playing while you drive.'),
     h('button', { 'aria-label': 'Close music', onclick: () => stopMusic() }, icon('close', 16))));
   const stopMusic = () => { music?.destroy(); music = null; playerBox.style.display = 'none'; };
-  const startMusic = async (src: string) => {
+  const startMusic = (src: string) => {
     const parsed = parseYouTube(src);
     if (!parsed) { toast('Paste a YouTube playlist or video link.'); return; }
     stopMusic();
     playerBox.style.display = '';
-    try {
-      music = await createMusic(vid, parsed, (p, t) => { playing = p; ppBtn.replaceChildren(icon(p ? 'pause' : 'play', 16)); if (t) title.textContent = t; });
-      music.volume(settings.music);
-    } catch { playerBox.style.display = 'none'; toast('YouTube could not be reached.'); }
+    music = createMusic(vid, parsed);
   };
   const openMusic = () => {
     const src = progress.playlist || DEFAULT_PLAYLIST;
     if (music) { stopMusic(); return; }
-    if (src) void startMusic(src); else openPause(true);
+    if (src) startMusic(src); else openPause(true);
   };
 
   const root = h('div.screen.hud', {},
@@ -227,7 +222,7 @@ export async function startDrive(flow: Flow): Promise<void> {
     const link = h<HTMLInputElement>('input.input', { placeholder: 'YouTube playlist or video link', value: progress.playlist, inputmode: 'url' });
     const vol = (key: 'sound' | 'music') => {
       const r = h<HTMLInputElement>('input', { type: 'range', min: 0, max: 1, step: 0.05, value: settings[key], 'aria-label': key });
-      r.addEventListener('input', () => { saveSettings({ [key]: +r.value }); if (key === 'sound') setSfxVolume(+r.value); else music?.volume(+r.value); });
+      r.addEventListener('input', () => { saveSettings({ [key]: +r.value }); if (key === 'sound') setSfxVolume(+r.value);  });
       return r;
     };
     const segOf = <T extends string>(opts: [T, string][], get: () => T, set: (v: T) => void) => {
@@ -245,7 +240,7 @@ export async function startDrive(flow: Flow): Promise<void> {
           h('div.rowi', {}, h('label', {}, icon('speed', 18), 'Graphics'), segOf([['low', 'Low'], ['medium', 'Mid'], ['high', 'High']], () => settings.quality, (v) => { saveSettings({ quality: v }); applyPixelRatio(); })),
         ),
         h('div', { style: 'display:grid;gap:8px' },
-          h('div.field', {}, link, h('button.pbtn.w', { onclick: async () => { progress.playlist = link.value.trim(); save(); close(); await startMusic(progress.playlist); } }, 'Play')),
+          h('div.field', {}, link, h('button.pbtn.w', { onclick: () => { progress.playlist = link.value.trim(); save(); close(); startMusic(progress.playlist); } }, 'Play')),
           h('div.hintt', {}, 'Music streams from YouTube in a small player while you drive.')),
         h('div.acts', {}, h('button.pbtn', { onclick: () => { scrim.remove(); finish(); } }, icon('flag', 17), 'End drive'), h('button.pbtn.r', { onclick: close }, icon('play', 17), 'Resume')),
       ));

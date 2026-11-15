@@ -15,6 +15,7 @@ export const MODEL_INFO: Record<string, { length: number; flip: boolean }> = {
   '/assets/models/pbus.glb': { length: 10.6, flip: false },
   '/assets/models/sltb.glb': { length: 10.8, flip: false },
   '/assets/models/tuk.glb': { length: 2.7, flip: false },
+  '/assets/models/pink.glb': { length: 12.2, flip: false },
   '/assets/models/car.glb': { length: 3.9, flip: false },
   '/assets/models/lorry.glb': { length: 6.4, flip: false },
 };

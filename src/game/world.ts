@@ -232,10 +232,27 @@ export async function buildWorld(city: CityDef): Promise<World> {
     if (R() < city.trees) at(f.i, f.side, ROAD_HALF + WALK + 2 + R() * 5, treeName());
     if (R() < 0.35) at(f.i, f.side, ROAD_HALF + WALK + 0.9, R() < 0.5 ? 'hedge' : 'banana');
   }
-  const far = Math.round(320 * city.trees);
+  const far = Math.round(320 * Math.max(0.45, city.trees));
   for (let k = 0; k < far; k++) at(Math.floor(R() * tr.n), R() < 0.5 ? 1 : -1, 22 + R() * 110, treeName());
   for (let i = 0; i < tr.n; i += 9) if (R() < city.trees * 0.5) at(i, R() < 0.5 ? 1 : -1, ROAD_HALF + WALK - 0.6, treeName());
   for (let i = 4, k = 0; i < tr.n; i += 16, k++) at(i, k % 2 ? 1 : -1, ROAD_HALF + 0.45, 'pole');
+  // horizon: a dense ring of trees so the land never ends in an empty flat edge
+  {
+    let maxR = 0; for (const p of tr.pos) maxR = Math.max(maxR, Math.hypot(p.x - cx, p.z - cz));
+    for (let ring = 0; ring < 3; ring++) {
+      const r0 = maxR + 70 + ring * 55, n = 150 + ring * 40;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + R() * 0.03, r = r0 + R() * 40;
+        const name = treeName(), [lo, hi] = HEIGHT[name], sc = 1 + ring * 0.25;
+        spots.push({ name, x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r, h: (lo + R() * (hi - lo)) * sc, flip: R() < 0.5 });
+      }
+    }
+    // clusters of shrubs and banana groves in the open land between road and horizon
+    for (let k = 0; k < 140; k++) {
+      const i = Math.floor(R() * tr.n), side = R() < 0.5 ? 1 : -1, base = 16 + R() * 70;
+      for (let j = 0; j < 3; j++) at(i, side, base + R() * 6, R() < 0.5 ? 'hedge' : 'banana');
+    }
+  }
   const extras: SpriteName[] = ['halt', 'stall', 'bike', 'sign', 'stall', 'bike'];
   for (let i = 12, k = 0; i < tr.n; i += 22 + Math.floor(R() * 14), k++) at(i, R() < 0.6 ? 1 : -1, ROAD_HALF + WALK * 0.55, extras[k % extras.length]);
   const sprites = buildSprites(spots, propsMap, new THREE.Color(city.sky.fog));

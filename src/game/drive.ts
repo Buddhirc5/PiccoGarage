@@ -19,7 +19,7 @@ export interface Summary { mode: 'free' | 'race'; city: string; km: number; time
 
 interface Mover { model: LoadedModel; s: number; lat: number; dir: 1 | -1; speed: number; target: number; len: number; wid: number; pos: THREE.Vector3; heading: number; behind: boolean; rival?: { prog: number; skill: number; top: number; latT: number; done: number } }
 
-const TRAFFIC_MODELS = ['car', 'car', 'tuk', 'lorry', 'car', 'sltb', 'tuk', 'pbus'];
+const TRAFFIC_MODELS = ['car', 'car', 'tuk', 'lorry', 'car', 'sltb', 'tuk', 'pbus', 'car', 'pink'];
 const wrap = (d: number, L: number) => ((d + L / 2) % L + L) % L - L / 2;
 
 export class Drive implements Stage {
