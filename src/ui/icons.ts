@@ -1,0 +1,43 @@
+/** Line icons (24px grid, 1.8 stroke), drawn for this game. */
+const P: Record<string, string> = {
+  play: '<path d="M7 4.5v15l12.5-7.5z" fill="currentColor" stroke="none"/>',
+  pause: '<path d="M7 5v14M17 5v14" stroke-width="3"/>',
+  right: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  chevL: '<path d="M15 5l-7 7 7 7"/>',
+  chevR: '<path d="M9 5l7 7-7 7"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+  coin: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.8c0-1 1.1-1.6 2.5-1.6s2.5.6 2.5 1.6c0 2.4-5 1.3-5 3.8 0 1 1.1 1.7 2.5 1.7s2.5-.7 2.5-1.7"/>',
+  bolt: '<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>',
+  disc: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/>',
+  tyre: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 3.5V8M12 16v4.5M3.5 12H8M16 12h4.5"/>',
+  paint: '<path d="M12 3.5s6 6.3 6 10.5a6 6 0 01-12 0c0-4.200 6-10.5 6-10.5z"/>',
+  horn: '<path d="M4 10v4h3l6 4V6l-6 4z"/><path d="M16.500 9a4.500 4.500 0 010 6M19 6.500a8 8 0 010 11"/>',
+  glow: '<path d="M4 15h16l-1.500-5h-13z"/><path d="M6 19h2M11 19h2M16 19h2M12 4v2.500M5.500 6l1.500 2M18.500 6L17 8"/>',
+  camera: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10.500l5-2.500v8l-5-2.500"/>',
+  music: '<path d="M9 18V6l10-2v12"/><circle cx="6.500" cy="18" r="2.500"/><circle cx="16.500" cy="16" r="2.500"/>',
+  prev: '<path d="M18 5v14L8 12z" fill="currentColor" stroke="none"/><path d="M6 5v14" stroke-width="2.400"/>',
+  next: '<path d="M6 5v14l10-7z" fill="currentColor" stroke="none"/><path d="M18 5v14" stroke-width="2.400"/>',
+  pin: '<path d="M12 21s7-6.200 7-11.500a7 7 0 00-14 0C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/>',
+  flag: '<path d="M5 21V4M5 4h13l-2.500 4.500L18 13H5"/>',
+  road: '<path d="M8 3L4 21M16 3l4 18M12 4v3M12 10.500v3M12 17v3"/>',
+  wrench: '<path d="M14.500 6.500a4.500 4.500 0 00-6 5.300L3.500 16.800a2 2 0 002.800 2.800l5-5a4.500 4.500 0 005.300-6l-2.900 2.900-2.300-.600-.600-2.300z"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 01-8 0zM8 6H4.500v1a3.500 3.500 0 003.500 3.500M16 6h3.500v1A3.500 3.500 0 0116 10.500M12 13v4M8.500 20h7M10 17h4"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M5.300 18.700l2.100-2.100M16.600 7.400l2.100-2.100"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+  home: '<path d="M4 11l8-7 8 7v8.500a.5.5 0 01-.5.5H15v-6H9v6H4.500a.5.5 0 01-.5-.5z"/>',
+  share: '<path d="M12 15V3M8 7l4-4 4 4M5 12v7.500a.5.5 0 00.5.5h13a.5.5 0 00.5-.5V12"/>',
+  speed: '<path d="M4 17a8.500 8.500 0 1116 0"/><path d="M12 17l4-6"/>',
+  wheel: '<circle cx="12" cy="12" r="8.500"/><circle cx="12" cy="12" r="2"/><path d="M3.800 10.500h5.700M14.500 10.500h5.700M12 14v6.300"/>',
+  rotate: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 9a10 10 0 013-5M22 15a10 10 0 01-3 5"/>',
+  star: '<path d="M12 3.500l2.600 5.400 5.900.800-4.300 4.100 1.100 5.800L12 16.800l-5.300 2.800 1.100-5.800-4.300-4.100 5.900-.800z"/>',
+};
+export type IconName = keyof typeof P;
+
+export function icon(name: string, size = 22): SVGSVGElement {
+  const t = document.createElement('template');
+  t.innerHTML = `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] ?? ''}</svg>`;
+  return t.content.firstChild as SVGSVGElement;
+}

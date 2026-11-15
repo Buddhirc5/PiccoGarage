@@ -8,8 +8,34 @@ Built with **Three.js + Vite + TypeScript**, with **Supabase** for Google
 sign-in and cloud saves. Runs in mobile browsers (Android Chrome, iPhone
 Safari) and on desktop.
 
-> Status: **build step 1 of 10** (skeleton, landing page, Google login,
-> profile). See [Build progress](#build-progress).
+> Status: playable build. Landing page, garage (paint, underglow, horns,
+> upgrades), five cities, free ride and race, YouTube music. Google sign-in,
+> cloud saves and leaderboards are the next step (the Supabase schema is in
+> `supabase/migrations`, not yet applied).
+
+## How the art is made
+
+All visual assets were generated with Higgsfield and optimised locally:
+
+- **Vehicles**: one realistic studio image per vehicle, converted to a 3D
+  model (GLB), then compressed with `gltf-transform` (meshopt + WebP
+  textures, about 0.2 to 0.5 MB each) into `public/assets/models`.
+- **Cities**: one sheet of six photos cropped into the city cards; one sheet
+  of eight building facades used as the building texture atlas
+  (`public/assets/tex/facades.webp`); one sky panorama.
+- **Driving controls**: steering wheel and pedals from one transparent sheet.
+
+To add a vehicle: generate a three-quarter studio image, convert it to GLB,
+run `npx gltf-transform optimize in.glb public/assets/models/name.glb
+--texture-size 1024 --texture-compress webp --compress meshopt --simplify false`,
+then add it to `MODEL_INFO` in `src/game/models.ts` and `VEHICLES` in
+`src/game/data.ts`.
+
+To add a city: add an entry to `CITIES` in `src/game/data.ts` (road loop
+points, building density, trees, landmark, sky) and a card image.
+
+Music: set `DEFAULT_PLAYLIST` in `src/config.ts` to a YouTube playlist id or
+URL. Players can also paste their own link from the pause menu.
 
 ## Quick start
 
@@ -64,53 +90,18 @@ or run `npx vercel`. Then add the deployed URL to the Supabase redirect list
 ## Project layout
 
 ```
-src/auth         Supabase client, Google login, profile functions
-src/landing      landing page + live 3D trailer
-src/core         renderer/game loop, audio engine, settings, store
-src/vehicles     tuk-tuk, private bus, public bus models + livery painter
-src/garage       customisation UI (step 2)
-src/world        street kit, procedural textures, maps, weather, NPCs
-src/modes        race modes (steps 5–7)
-src/leaderboard  boards (step 7)
-src/ui           menus, HUD, settings, share
-src/i18n         en.json / si.json
-src/ads, src/payments   placeholder adapters (step 8)
-public/music, public/sounds, public/assets
-supabase/migrations     SQL schema
-docs/REFERENCES.md      visual reference notes
+src/game      data (vehicles, cities, upgrades), progress/saves, model loader,
+              city builder (world.ts), driving session (drive.ts)
+src/ui        landing page, garage showroom, city select, HUD, results, styles
+src/core      renderer loop, sound engine, YouTube music, settings
+src/auth      Supabase client and Google sign-in (not wired into the UI yet)
+public/assets generated images, textures and 3D models
+supabase/migrations  SQL schema for profiles, saves and leaderboards
 ```
 
-## How to extend
+## Not built yet
 
-- **Translations**: add the key to `src/i18n/en.json` and `si.json`. Use
-  `data-i18n="key"` in DOM built with `h()` or call `t('key')`.
-- **Vehicles**: add a builder in `src/vehicles/`, register it in
-  `src/vehicles/index.ts`, and add its paint zones to `ZONES` in `types.ts`.
-- **Liveries**: add a style to `LiveryStyle` and a case in `background()` in
-  `src/vehicles/livery.ts`. Panels are drawn in metres, so text stays
-  undistorted on the model.
-- **Maps, modes, music**: documented as those steps land.
-
-## Placeholders to replace before release
-
-| Item | Where | Status |
-|---|---|---|
-| Ad SDK | `src/ads` | stub (step 8) |
-| Payment provider | `src/payments/paymentAdapter.ts` | stub (step 8) |
-| Music tracks | `public/music/` + JSON list | silent placeholders (step 3) |
-| Flood Town English name | i18n | "Flood Town" pending confirmation |
-| Sound licences | `public/credits.html` | all SFX are synthesised originals |
-| Privacy Policy / Terms | `public/privacy.html`, `terms.html` | drafts, need review |
-
-## Build progress
-
-1. ✅ Project skeleton, landing page, Supabase Google login, profile + name setup
-2. ⏳ Vehicle models and garage system with saves
-3. ⏳ Driving controller and sound engine
-4. ⏳ Map 1 with weather, traffic and NPCs
-5. ⏳ Public red bus with Route Race
-6. ⏳ Maps 2–5 and remaining race modes
-7. ⏳ Leaderboards and Race Series
-8. ⏳ Shop, coins, rewarded ad stub, payment stub
-9. ⏳ Language pass, sharing, performance pass
-10. ⏳ Deployment and final QA
+- Google sign-in, cloud saves, leaderboards, multiplayer
+- Sinhala language
+- Ads and payments
+- Weather, pedestrians, bus-stop route mode

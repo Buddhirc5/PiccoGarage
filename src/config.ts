@@ -5,4 +5,7 @@ export const SUPABASE_URL: string =
 export const SUPABASE_ANON_KEY: string =
   import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_PmI6rYjDFiyIO0E0Qn5NGQ_gq7QHrhx';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
+
+/** YouTube playlist (id or URL) that plays as in-game music. Leave empty to let players paste their own. */
+export const DEFAULT_PLAYLIST = '';
