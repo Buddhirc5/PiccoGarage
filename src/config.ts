@@ -8,4 +8,4 @@ export const SUPABASE_ANON_KEY: string =
 export const APP_VERSION = '0.2.0';
 
 /** YouTube playlist (id or URL) that plays as in-game music. Leave empty to let players paste their own. */
-export const DEFAULT_PLAYLIST = '';
+export const DEFAULT_PLAYLIST = 'PLyqLkSz7MX0948RS_jI50wp3Ub_Y2O_3L';
