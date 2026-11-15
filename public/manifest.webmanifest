@@ -1,0 +1,10 @@
+{
+  "name": "Picco Garage",
+  "short_name": "Picco",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#120d1f",
+  "theme_color": "#120d1f",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
