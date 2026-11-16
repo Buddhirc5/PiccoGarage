@@ -45,7 +45,7 @@ export class Drive implements Stage {
   private finished: number | null = null; private bumpCd = 0;
   private engine: EngineSound | null = null; private hornOff: (() => void) | null = null;
   private keys = new Set<string>();
-  private camPos = new THREE.Vector3(); private camInit = false;
+  private camInit = false;
   private curv: number[] = [];
   private glow: THREE.Mesh | null = null;
   private tmp = new THREE.Vector3(); private tmp2 = new THREE.Vector3();
@@ -335,26 +335,44 @@ export class Drive implements Stage {
     }
   }
 
+  private camYaw = 0;
   private updateCamera(dt: number) {
-    const f = this.tmp.set(Math.sin(this.heading), 0, Math.cos(this.heading));
     const sp = Math.min(1, Math.abs(this.v) / (this.st.top / 3.6));
-    const cam = this.camera, L = this.def.length, H = this.me.size.y;
+    const cam = this.camera, L = this.def.length, H = this.me.size.y, tuk = this.def.id === 'tuk';
     this.me.root.visible = this.camMode !== 1;
+    const f = this.tmp.set(Math.sin(this.heading), 0, Math.cos(this.heading));
+    let fov: number;
     if (this.camMode === 1) {
-      const e = this.def.eye;
-      cam.position.copy(this.pos).addScaledVector(f, L / 2 + 0.15).add(this.tmp2.set(f.z * e[0], e[1], -f.x * e[0]));
-      cam.lookAt(this.tmp2.copy(this.pos).addScaledVector(f, L / 2 + 30).setY(e[1] - 1.2));
+      // driver's eye: seat position from the vehicle data, looking level down the road
+      const [ex, ey, ez] = this.def.eye;
+      const right = this.tmp2.set(f.z, 0, -f.x);
+      cam.position.copy(this.pos).addScaledVector(f, ez).addScaledVector(right, ex);
+      cam.position.y = ey + (Math.abs(this.v) > 1 ? Math.sin(this.time * 17) * 0.012 : 0);
+      const look = this.pos.clone().addScaledVector(f, ez + 40).addScaledVector(right, ex);
+      look.y = ey - (tuk ? 1.0 : 1.6) + this.steer * 0;
+      cam.lookAt(look);
+      // turn the head slightly into bends
+      cam.rotateY(this.steer * 0.35);
+      fov = (tuk ? 72 : 66) + sp * 6;
+      this.camInit = false;
     } else {
-      const back = this.camMode === 0 ? L * 0.78 + 5 + sp * 1.8 : L * 0.9 + 12;
-      const up = this.camMode === 0 ? H * 0.9 + 1.5 : H + 8;
-      const want = this.tmp2.copy(this.pos).addScaledVector(f, -back).setY(up);
-      if (!this.camInit) { this.camPos.copy(want); this.camInit = true; }
-      this.camPos.lerp(want, 1 - Math.exp(-dt * 6));
-      cam.position.copy(this.camPos);
-      cam.lookAt(this.tmp2.copy(this.pos).addScaledVector(f, L * 0.35 + 4).setY(H * 0.55));
+      // chase: the camera swings behind on a damped yaw, so bends feel smooth instead of cutting across
+      if (!this.camInit) { this.camYaw = this.heading; this.camInit = true; }
+      let d = this.heading - this.camYaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.camYaw += d * (1 - Math.exp(-dt * (this.camMode === 0 ? 4.5 : 3)));
+      const cf = this.tmp2.set(Math.sin(this.camYaw), 0, Math.cos(this.camYaw));
+      const far = this.camMode === 2;
+      const back = tuk ? (far ? 11 : 4.6 + sp * 1.2) : far ? L * 0.6 + 14 : L * 0.5 + 5.2 + sp * 2;
+      const up = tuk ? (far ? 6.5 : 2.1) : far ? H + 8 : H + 1.0;
+      cam.position.copy(this.pos).addScaledVector(cf, -back);
+      cam.position.y = up;
+      const ahead = tuk ? 4 : L * 0.3 + 4;
+      const tgt = this.pos.clone().addScaledVector(cf, ahead);
+      tgt.y = tuk ? 1.15 : H * 0.62;
+      cam.lookAt(tgt);
+      fov = (tuk ? 64 : 58) + sp * 14;
     }
-    const fov = 60 + sp * 16;
-    if (Math.abs(cam.fov - fov) > 0.2) { cam.fov += (fov - cam.fov) * Math.min(1, 4 * dt); cam.updateProjectionMatrix(); }
+    if (Math.abs(cam.fov - fov) > 0.1) { cam.fov += (fov - cam.fov) * Math.min(1, 4 * dt); cam.updateProjectionMatrix(); }
   }
 
   /** Ends the drive, banks rewards and returns the summary. */

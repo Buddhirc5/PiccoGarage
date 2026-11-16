@@ -28,16 +28,16 @@ export interface VehicleDef {
 
 export const VEHICLES: VehicleDef[] = [
   { id: 'pbus', name: 'Private Coach', big: 'COACH', cutout: '/assets/img/cut_pbus.webp', tagline: 'The highway king. Loud horn, long body, big presence.', model: '/assets/models/pbus.glb',
-    length: 10.6, width: 2.5, wheelBase: 5.6, eye: [-0.65, 2.25, 4.2], topSpeed: 118, accel: 3.4, brake: 9, steer: 0.5, mass: 0.85,
+    length: 10.6, width: 2.5, wheelBase: 5.6, eye: [-0.62, 2.15, 4.35], topSpeed: 118, accel: 3.4, brake: 9, steer: 0.5, mass: 0.85,
     tintable: true, defaultTint: '#ffffff', engine: 'diesel', horn: 'air' },
   { id: 'sltb', name: 'Red Route Bus', big: 'ROUTE', cutout: '/assets/img/cut_sltb.webp', tagline: 'The island workhorse. Heavy, steady, unstoppable.', model: '/assets/models/sltb.glb',
-    length: 10.8, width: 2.5, wheelBase: 5.7, eye: [-0.65, 2.3, 4.3], topSpeed: 102, accel: 2.9, brake: 8, steer: 0.48, mass: 1,
+    length: 10.8, width: 2.5, wheelBase: 5.7, eye: [-0.62, 2.2, 4.45], topSpeed: 102, accel: 2.9, brake: 8, steer: 0.48, mass: 1,
     tintable: false, defaultTint: '#ffffff', engine: 'diesel', horn: 'steady' },
   { id: 'pink', name: 'Pink Queen', big: 'QUEEN', cutout: '/assets/img/cut_pink.webp', tagline: 'A decorated luxury coach with roof horns and spot lamps. Built to be seen.', model: '/assets/models/pink.glb',
-    length: 12.2, width: 2.55, wheelBase: 6.2, eye: [-0.7, 2.4, 5.0], topSpeed: 128, accel: 3.2, brake: 9.5, steer: 0.45, mass: 0.9,
+    length: 12.2, width: 2.55, wheelBase: 6.2, eye: [-0.62, 2.3, 5.3], topSpeed: 128, accel: 3.2, brake: 9.5, steer: 0.45, mass: 0.9,
     tintable: false, defaultTint: '#ffffff', engine: 'diesel', horn: 'twin' },
   { id: 'tuk', name: 'Three-Wheeler', big: 'TUK TUK', cutout: '/assets/img/cut_tuk.webp', tagline: 'Light, nimble and everywhere. Slips through any gap.', model: '/assets/models/tuk.glb',
-    length: 2.7, width: 1.35, wheelBase: 1.9, eye: [0, 1.25, 0.25], topSpeed: 84, accel: 4.6, brake: 10, steer: 0.62, mass: 0.2,
+    length: 2.7, width: 1.35, wheelBase: 1.9, eye: [0, 1.3, 0.35], topSpeed: 84, accel: 4.6, brake: 10, steer: 0.62, mass: 0.2,
     tintable: true, defaultTint: '#c8102e', engine: 'twostroke', horn: 'beep' },
 ];
 
