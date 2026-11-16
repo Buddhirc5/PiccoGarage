@@ -1,3 +1,4 @@
+import { track } from '../core/track';
 import * as THREE from 'three';
 import { horn, setCustomHorn, hasCustomHorn, ui as sfx, unlockAudio } from '../core/audio';
 import { environment, setStage, type Stage } from '../core/renderer';
@@ -125,7 +126,7 @@ export function showGarage(onBack: () => void, onNext: () => void): void {
           h('span.price', {}, cost === undefined ? 'Fully upgraded' : `${fmtNum(cost)} coins`));
         card.addEventListener('click', () => {
           if (cost === undefined) return;
-          if (buyUpgrade(v.id, u.id)) { sfx.buy(); toast(`${u.name} upgraded to level ${lv + 1}`); renderHead(); renderOpts(); }
+          if (buyUpgrade(v.id, u.id)) { track('upgrade', { vehicle: v.id, part: u.id, level: lv + 1 }); sfx.buy(); toast(`${u.name} upgraded to level ${lv + 1}`); renderHead(); renderOpts(); }
           else { sfx.deny(); toast('Not enough coins yet. Drive to earn more.'); }
         });
         return card;
@@ -163,7 +164,7 @@ export function showGarage(onBack: () => void, onNext: () => void): void {
     toast('Your horn is ready.'); horn('custom');
   });
 
-  const go = (d: number) => { idx = (idx + d + VEHICLES.length) % VEHICLES.length; progress.vehicle = cur().id; save(); sfx.select(); stage.show(cur().id); renderHead(); renderOpts(); };
+  const go = (d: number) => { idx = (idx + d + VEHICLES.length) % VEHICLES.length; progress.vehicle = cur().id; save(); sfx.select(); stage.show(cur().id); renderHead(); renderOpts(); track('vehicle', { vehicle: cur().id }); };
   for (const [t, label, ic] of [['tune', 'Performance', 'bolt'], ['paint', 'Paint', 'paint'], ['glow', 'Underglow', 'glow'], ['horn', 'Horn', 'horn']] as const)
     chips.append(h('button', { class: 'chip', 'data-t': t, onclick: () => { tab = t; sfx.tap(); renderOpts(); } }, icon(ic, 16), label));
 

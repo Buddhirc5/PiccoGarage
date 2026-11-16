@@ -1,3 +1,5 @@
+import { startTracking, track } from './core/track';
+import { progress } from './game/progress';
 import './ui/styles.css';
 import { setCustomHorn, unlockAudio } from './core/audio';
 import { initRenderer, setStage } from './core/renderer';
@@ -11,8 +13,8 @@ import { showCities, startDrive, type Flow } from './ui/play';
 
 const flow: Flow = {
   home: () => { setStage(null); setBackdrop(null); document.body.className = ''; showLanding(flow.garage); },
-  garage: () => showGarage(flow.home, flow.cities),
-  cities: () => showCities(flow),
+  garage: () => { track('garage'); showGarage(flow.home, flow.cities); },
+  cities: () => { track('city', { city: progress.city }); showCities(flow); },
   drive: () => { void startDrive(flow); },
 };
 
@@ -26,6 +28,7 @@ async function boot() {
   // iOS Safari: stop pinch zoom and double-tap zoom from hijacking the controls
   document.addEventListener('gesturestart', (e) => e.preventDefault());
   document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+  startTracking();
   flow.home();
   document.getElementById('boot')!.classList.add('done');
   void preload(VEHICLES.map((v) => v.model)); // warm the garage while the player reads the landing page

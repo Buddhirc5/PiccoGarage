@@ -1,3 +1,4 @@
+import { track } from '../core/track';
 import * as THREE from 'three';
 import { DEFAULT_PLAYLIST } from '../config';
 import { setSfxVolume, ui as sfx, unlockAudio } from '../core/audio';
@@ -95,6 +96,7 @@ export async function startDrive(flow: Flow): Promise<void> {
   const drive = new Drive(city, veh.id, progress.mode);
   try { await drive.load(); } catch (e) { console.error(e); toast('Could not load this city. Please try again.'); document.body.className = ''; flow.cities(); return; }
   setStage(drive);
+  track('drive_start', { city: city.id, vehicle: veh.id, mode: progress.mode, quality: settings.quality });
   (window as unknown as { drive: Drive }).drive = drive;
 
   // ── HUD elements ──
@@ -124,7 +126,7 @@ export async function startDrive(flow: Flow): Promise<void> {
   };
   const hornB = hold(hbtn('horn', 'Horn'), () => drive.horn(true), () => drive.horn(false));
   const gearB = hbtn(null, 'Drive or reverse', () => { drive.toggleGear(); gearB.textContent = drive.hud.gear; }, 'D');
-  const camB = hbtn('camera', 'Change camera', () => { sfx.tap(); drive.nextCamera(); });
+  const camB = hbtn('camera', 'Change camera', () => { sfx.tap(); drive.nextCamera(); track('camera', { mode: drive.camMode }); });
   const musicB = hbtn('music', 'Music', () => { sfx.tap(); openMusic(); });
 
   const steerBox = h('div.bl');
@@ -160,6 +162,7 @@ export async function startDrive(flow: Flow): Promise<void> {
     stopMusic();
     playerBox.style.display = '';
     music = createMusic(vid, parsed);
+    track('music');
     setMini(false);
   };
   // after the first press of the accelerator the player shrinks to a pill; music keeps playing
@@ -267,6 +270,7 @@ export async function startDrive(flow: Flow): Promise<void> {
 
   function finish() {
     const sum = drive.end();
+    track('drive_end', { city: city.id, vehicle: veh.id, mode: sum.mode, km: +sum.km.toFixed(3), time: Math.round(sum.time), overtakes: sum.overtakes, position: sum.position, top: Math.round(sum.topKmh) });
     cleanup();
     showResults(sum, flow);
   }
