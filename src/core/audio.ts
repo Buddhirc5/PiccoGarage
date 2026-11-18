@@ -18,14 +18,14 @@ export async function unlockAudio(): Promise<void> {
     const limiter = ctx.createDynamicsCompressor();
     limiter.threshold.value = -12; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.002; limiter.release.value = 0.12;
     sfx = ctx.createGain();
-    sfx.gain.value = settings.sound;
+    sfx.gain.value = settings.sound * duck;
     sfx.connect(limiter).connect(ctx.destination);
   }
   if (ctx.state !== 'running') await ctx.resume().catch(() => {});
 }
 
 export function setSfxVolume(v: number): void {
-  if (ctx) sfx.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
+  if (ctx) sfx.gain.setTargetAtTime(v * duck, ctx.currentTime, 0.05);
 }
 
 function tone(freq: number, dur: number, type: OscillatorType, vol: number, slide = 1, delay = 0, dest: AudioNode = sfx) {
@@ -135,4 +135,67 @@ export function horn(id: string): () => void {
   const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = id === 'beep' ? 2600 : 1700; f.connect(g);
   const oscs = freqs.map((fr) => { const o = c.createOscillator(); o.type = type; o.frequency.value = fr; const og = c.createGain(); og.gain.value = 0.5; o.connect(og).connect(f); o.start(); return o; });
   return stopAt(oscs);
+}
+
+// ── v2 sounds: squeal, siren, whoosh, chimes, ducking ──────────────────────
+let duck = 1;
+/** Lowers engine and effects while music plays. */
+export function setDuck(on: boolean): void {
+  duck = on ? 0.55 : 1;
+  if (ctx) sfx.gain.setTargetAtTime(settings.sound * duck, ctx.currentTime, 0.2);
+}
+export const fx = {
+  whoosh: () => { noiseSweep(0.45, 0.32, 400, 3200); },
+  nearMiss: () => { noiseSweep(0.3, 0.22, 2400, 600); tone(880, 0.12, 'triangle', 0.08); },
+  boostStart: () => { noiseSweep(0.7, 0.35, 200, 2400); tone(110, 0.6, 'sawtooth', 0.12, 2.2); },
+  door: () => { tone(988, 0.18, 'sine', 0.12); tone(784, 0.3, 'sine', 0.12, 1, 0.16); noiseSweep(0.5, 0.12, 1800, 300, 0.05); },
+  fare: () => { tone(1568, 0.08, 'triangle', 0.1); tone(2093, 0.14, 'triangle', 0.1, 1, 0.06); },
+  shift: () => { tone(160, 0.08, 'square', 0.05, 0.6); },
+  whistle: () => { tone(2900, 0.18, 'sine', 0.12); tone(2900, 0.5, 'sine', 0.12, 0.98, 0.25); },
+  star: (i: number) => tone(660 * Math.pow(1.26, i), 0.25, 'triangle', 0.16),
+  levelUp: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.18, 'triangle', 0.15, 1, i * 0.08)),
+};
+function noiseSweep(dur: number, vol: number, f0: number, f1: number, delay = 0) {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime + delay;
+  const s = ctx.createBufferSource(); s.buffer = noise();
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.4;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f).connect(g).connect(sfx); s.start(t); s.stop(t + dur + 0.05);
+}
+
+/** Continuous tyre squeal; set(0..1) each frame. */
+export function startSqueal(): { set(v: number): void; stop(): void } {
+  if (!ctx) return { set() {}, stop() {} };
+  const c = ctx;
+  const s = c.createBufferSource(); s.buffer = noise(); s.loop = true;
+  const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 6;
+  const g = c.createGain(); g.gain.value = 0;
+  s.connect(f).connect(g).connect(sfx); s.start();
+  return {
+    set(v) { g.gain.setTargetAtTime(v * 0.22, c.currentTime, 0.05); f.frequency.setTargetAtTime(1600 + v * 700, c.currentTime, 0.1); },
+    stop() { g.gain.setTargetAtTime(0, c.currentTime, 0.05); setTimeout(() => { try { s.stop(); } catch { /* done */ } }, 300); },
+  };
+}
+
+/** Police siren (two-tone wail); level 0 = off. */
+export function startSiren(): { set(v: number): void; stop(): void } {
+  if (!ctx) return { set() {}, stop() {} };
+  const c = ctx;
+  const o = c.createOscillator(); o.type = 'triangle';
+  const lfo = c.createOscillator(); lfo.frequency.value = 0.9;
+  const lg = c.createGain(); lg.gain.value = 260;
+  lfo.connect(lg).connect(o.frequency); o.frequency.value = 900;
+  const g = c.createGain(); g.gain.value = 0;
+  o.connect(g).connect(sfx); o.start(); lfo.start();
+  return {
+    set(v) { g.gain.setTargetAtTime(v * 0.08, c.currentTime, 0.1); },
+    stop() { g.gain.setTargetAtTime(0, c.currentTime, 0.05); setTimeout(() => { try { o.stop(); lfo.stop(); } catch { /* done */ } }, 300); },
+  };
+}
+
+/** Short phone vibration where supported (Android). */
+export function buzz(ms: number | number[]): void {
+  try { navigator.vibrate?.(ms); } catch { /* unsupported */ }
 }

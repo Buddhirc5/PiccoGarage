@@ -16,6 +16,11 @@ export const MODEL_INFO: Record<string, { length: number; flip: boolean }> = {
   '/assets/models/sltb.glb': { length: 10.8, flip: false },
   '/assets/models/tuk.glb': { length: 2.7, flip: false },
   '/assets/models/pink.glb': { length: 12.2, flip: false },
+  '/assets/models/leyland.glb': { length: 10.8, flip: false },
+  '/assets/models/ashok.glb': { length: 11, flip: false },
+  '/assets/models/tukking.glb': { length: 2.75, flip: false },
+  '/assets/models/tukneon.glb': { length: 2.75, flip: false },
+  '/assets/models/police.glb': { length: 4.6, flip: false },
   '/assets/models/car.glb': { length: 3.9, flip: false },
   '/assets/models/lorry.glb': { length: 6.4, flip: false },
 };
@@ -52,7 +57,7 @@ function prepare(url: string): Promise<THREE.Object3D> {
   return p;
 }
 
-export interface LoadedModel { root: THREE.Object3D; size: THREE.Vector3; setTint(hex: string): void; dispose(): void }
+export interface LoadedModel { root: THREE.Object3D; size: THREE.Vector3; setTint(hex: string): void; setFinish(f: 'gloss' | 'metallic' | 'matte'): void; dispose(): void }
 
 /** Returns an independent instance (own material, shared geometry/textures). */
 export async function loadModel(url: string, shareMaterial = false): Promise<LoadedModel> {
@@ -60,6 +65,7 @@ export async function loadModel(url: string, shareMaterial = false): Promise<Loa
   const root = proto.clone(true);
   const mats: THREE.MeshStandardMaterial[] = [];
   const tint = { value: new THREE.Color(1, 1, 1) };
+  const finish = { value: new THREE.Vector3(0, 0.3, 0.1) }; // x: weight, y: roughness, z: metalness
   if (!shareMaterial) {
     root.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -67,12 +73,15 @@ export async function loadModel(url: string, shareMaterial = false): Promise<Loa
       const mat = (m.material as THREE.MeshStandardMaterial).clone();
       // Repaint only the bodywork: bright, colourless (white) paint takes the tint; glass, tyres and stripes keep theirs.
       mat.onBeforeCompile = (sh) => {
-        sh.uniforms.uTint = tint;
-        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uTint;')
+        sh.uniforms.uTint = tint; sh.uniforms.uFinish = finish;
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uTint; uniform vec3 uFinish;')
           .replace('#include <map_fragment>', `#include <map_fragment>
+            float paintW;
             { float mx = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)); float mn = min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
-              float wgt = smoothstep(0.2, 0.42, mx) * (1.0 - smoothstep(0.1, 0.28, (mx - mn) / max(mx, 0.001)));
-              diffuseColor.rgb = mix(diffuseColor.rgb, vec3(mx) * uTint, wgt); }`);
+              paintW = smoothstep(0.2, 0.42, mx) * (1.0 - smoothstep(0.1, 0.28, (mx - mn) / max(mx, 0.001)));
+              diffuseColor.rgb = mix(diffuseColor.rgb, vec3(mx) * uTint, paintW); }`)
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, uFinish.y, paintW * uFinish.x);')
+          .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, uFinish.z, paintW * uFinish.x);');
       };
       mat.customProgramCacheKey = () => 'bodytint';
       m.material = mat; mats.push(mat);
@@ -82,6 +91,7 @@ export async function loadModel(url: string, shareMaterial = false): Promise<Loa
     root,
     size: (proto.userData.size as THREE.Vector3).clone(),
     setTint(hex) { tint.value.set(hex); },
+    setFinish(f) { finish.value.set(f === 'gloss' ? 0.7 : 1, f === 'metallic' ? 0.22 : f === 'matte' ? 0.92 : 0.18, f === 'metallic' ? 0.75 : f === 'matte' ? 0 : 0.15); },
     dispose() { mats.forEach((m) => m.dispose()); },
   };
 }

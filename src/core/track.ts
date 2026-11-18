@@ -8,7 +8,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config';
 type EventType = 'visit' | 'heartbeat' | 'garage' | 'vehicle' | 'upgrade' | 'city' | 'drive_start' | 'drive_end' | 'music' | 'camera' | 'share';
 
 const rid = () => (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/-/g, '').slice(0, 24);
-const visitor = (() => { try { let v = localStorage.getItem('picco.vid'); if (!v) { v = rid(); localStorage.setItem('picco.vid', v); } return v; } catch { return rid(); } })();
+export const visitor = (() => { try { let v = localStorage.getItem('picco.vid'); if (!v) { v = rid(); localStorage.setItem('picco.vid', v); } return v; } catch { return rid(); } })();
 const session = rid();
 
 const ua = navigator.userAgent;

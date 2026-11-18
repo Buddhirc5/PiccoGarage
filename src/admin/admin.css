@@ -102,3 +102,25 @@ td:first-child { color: var(--ink); }
   .top { flex-wrap: wrap; row-gap: 10px; } .brand span { display: none; } .top .seg { order: 5; width: 100%; } .top .seg button { flex: 1; } .live { font-size: 12px; }
 }
 @media (max-width: 520px) { .kpi b { font-size: 24px; } .fstep { grid-template-columns: 96px 1fr 70px; } main { padding: 16px 14px 50px; } .h h1 { font-size: 23px; } }
+
+/* v3 views */
+.vtabs { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--line); overflow-x: auto; position: sticky; top: 0; background: var(--bg); z-index: 5; }
+.vtabs button { padding: 12px 14px; font-size: 14px; font-weight: 600; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; }
+.vtabs button.on { color: var(--ink); border-color: var(--red); }
+.toolbar { display: flex; gap: 10px; } .toolbar .in { max-width: 320px; flex: 1; }
+tr.click { cursor: pointer; } tr.click:hover td { background: rgba(255,255,255,.03); }
+.pdetail { display: grid; gap: 14px; } .pdetail h3 { display: flex; justify-content: space-between; align-items: center; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.kv div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surf2); } .kv span { font-size: 12px; color: var(--soft); } .kv b { font-size: 15px; }
+.grant { display: grid; grid-template-columns: 120px 120px 1fr auto; gap: 10px; align-items: end; } .grant .msg { grid-column: 1 / -1; }
+.small { font-size: 12.5px; color: var(--soft); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+table.coh td { border-radius: 6px; }
+.form { display: grid; gap: 12px; } .form select.in { appearance: none; }
+.stlist { display: grid; gap: 8px; } .strow { display: grid; grid-template-columns: 160px 1fr 1.4fr 80px; gap: 8px; }
+.savebar { display: flex; gap: 14px; align-items: center; position: sticky; bottom: 0; padding: 14px 0; background: linear-gradient(transparent, var(--bg) 30%); }
+.savebar .btn { padding: 0 22px; }
+@media (max-width: 760px) {
+  .vtabs { padding: 0 12px; }
+  .grant { grid-template-columns: 1fr 1fr; } .grant .wide, .grant .btn { grid-column: 1 / -1; }
+  .strow { grid-template-columns: 1fr; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+}

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { CityDef } from './data';
+import type { CityDef, TimeOfDay, Weather } from './data';
+import { glowTexture } from './fx';
 import { HEIGHT, buildSprites, type SpriteName, type SpriteSpot } from './sprites';
 
 /**
@@ -23,7 +24,10 @@ export interface Track {
   heading(s: number): number;
 }
 
-export interface World { group: THREE.Group; track: Track; sun: THREE.DirectionalLight; dispose(): void }
+/** Positions along the loop (metres of s) for gameplay features. */
+export interface Layout { stops: number[]; crossings: number[]; bumps: number[]; checkpoints: number[]; junctions: number[] }
+export interface World { group: THREE.Group; track: Track; sun: THREE.DirectionalLight; layout: Layout; night: boolean; wet: boolean; fogColor: THREE.Color; dispose(): void }
+export interface WorldOptions { time: TimeOfDay; weather: Weather; quality: 'low' | 'medium' | 'high' }
 
 function rng(seed: number) { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
@@ -115,7 +119,8 @@ function basis(tr: Track, i: number, side: number, lat: number, y = 0): THREE.Ma
   return new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(p);
 }
 
-export async function buildWorld(city: CityDef): Promise<World> {
+export async function buildWorld(city: CityDef, opt: WorldOptions): Promise<World> {
+  const night = opt.time === 'night', dusk = opt.time === 'dusk', wet = opt.weather === 'rain';
   const R = rng(city.id.length * 7919 + city.loop.length * 31 + city.id.charCodeAt(0));
   const tr = makeTrack(city.loop);
   const g = new THREE.Group();
@@ -124,7 +129,7 @@ export async function buildWorld(city: CityDef): Promise<World> {
   const tl = new THREE.TextureLoader();
   const groundName = city.id === 'anuradhapura' ? 'earth' : 'grass';
   const [facades, skyMap, propsMap, groundMap, paversMap, asphaltImg] = await Promise.all([
-    tl.loadAsync('/assets/tex/facades.webp'), tl.loadAsync('/assets/tex/sky.webp'), tl.loadAsync('/assets/tex/props.webp'),
+    tl.loadAsync('/assets/tex/facades.webp'), tl.loadAsync(night ? '/assets/tex/sky_night.webp' : '/assets/tex/sky.webp'), tl.loadAsync('/assets/tex/props.webp'),
     tl.loadAsync(`/assets/tex/g_${groundName}.webp`), tl.loadAsync('/assets/tex/g_pavers.webp'),
     new THREE.ImageLoader().loadAsync('/assets/tex/g_asphalt.webp')]);
   for (const t of [propsMap, groundMap, paversMap]) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; keep(t); }
@@ -137,21 +142,22 @@ export async function buildWorld(city: CityDef): Promise<World> {
 
   // ── sky, light, fog ──
   const sky = new THREE.Mesh(keep(new THREE.SphereGeometry(900, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2)),
-    keep(new THREE.MeshBasicMaterial({ map: skyMap, color: city.sky.tint, side: THREE.BackSide, fog: false, depthWrite: false })));
+    keep(new THREE.MeshBasicMaterial({ map: skyMap, color: night ? '#ffffff' : wet ? '#8d96a3' : dusk ? '#ffb48a' : city.sky.tint, side: THREE.BackSide, fog: false, depthWrite: false })));
   sky.position.set(cx, -20, cz); sky.renderOrder = -1;
   g.add(sky);
-  g.add(new THREE.HemisphereLight(0xdfeaff, 0x6b6250, 1.15));
-  const sun = new THREE.DirectionalLight(city.sky.sun, 2.6);
+  g.add(new THREE.HemisphereLight(night ? 0x334466 : 0xdfeaff, night ? 0x141418 : 0x6b6250, night ? 0.55 : wet ? 0.95 : dusk ? 0.85 : 1.15));
+  const sun = new THREE.DirectionalLight(night ? 0x8fa4ff : dusk ? 0xff9a5c : city.sky.sun, night ? 0.35 : wet ? 0.9 : dusk ? 1.9 : 2.6);
   sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0006;
   const sc = sun.shadow.camera; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 220;
-  sun.userData.offset = new THREE.Vector3(-60, city.sky.sunY, 40);
+  sun.userData.offset = new THREE.Vector3(-60, dusk ? 18 : night ? 60 : city.sky.sunY, 40);
+  sun.castShadow = opt.quality !== 'low' && !night;
   g.add(sun, sun.target);
 
   // ── ground + road + pavements ──
   const ground = new THREE.Mesh(keep(new THREE.PlaneGeometry(2400, 2400)), keep(new THREE.MeshStandardMaterial({ map: groundMap, color: city.id === 'anuradhapura' ? 0xc8b8a0 : 0xb5bf9a, roughness: 1 })));
   ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.03, cz); ground.receiveShadow = true;
   g.add(ground);
-  const roadMat = keep(new THREE.MeshStandardMaterial({ map: keep(asphalt(asphaltImg)), roughness: 0.82, metalness: 0.05 }));
+  const roadMat = keep(new THREE.MeshStandardMaterial({ map: keep(asphalt(asphaltImg)), roughness: wet ? 0.28 : 0.82, metalness: wet ? 0.35 : 0.05, color: wet ? 0x8a8a8a : 0xffffff }));
   const road = new THREE.Mesh(keep(ribbon(tr, ROAD_HALF, 0.02, -ROAD_HALF, 0.02, 17.6)), roadMat);
   road.receiveShadow = true; g.add(road);
   const paveMat = keep(new THREE.MeshStandardMaterial({ map: paversMap, roughness: 0.95 }));
@@ -195,7 +201,9 @@ export async function buildWorld(city: CityDef): Promise<World> {
     }
   }
   if (geos.length) {
-    const b = new THREE.Mesh(keep(mergeGeometries(geos)), keep(new THREE.MeshStandardMaterial({ map: facades, roughness: 0.9 })));
+    const bm = new THREE.MeshStandardMaterial({ map: facades, roughness: 0.9 });
+    if (night) { bm.emissiveMap = facades; bm.emissive.set(0xffb060); bm.emissiveIntensity = 0.32; }
+    const b = new THREE.Mesh(keep(mergeGeometries(geos)), keep(bm));
     b.castShadow = b.receiveShadow = true; g.add(b);
     geos.forEach((x) => x.dispose());
   }
@@ -255,7 +263,79 @@ export async function buildWorld(city: CityDef): Promise<World> {
   }
   const extras: SpriteName[] = ['halt', 'stall', 'bike', 'sign', 'stall', 'bike'];
   for (let i = 12, k = 0; i < tr.n; i += 22 + Math.floor(R() * 14), k++) at(i, R() < 0.6 ? 1 : -1, ROAD_HALF + WALK * 0.55, extras[k % extras.length]);
-  const sprites = buildSprites(spots, propsMap, new THREE.Color(city.sky.fog));
+
+  // ── gameplay layout along the loop ──
+  const L = tr.length, frac = (f: number) => (((f % 1) + 1) % 1) * L;
+  const layout: Layout = {
+    stops: [0.12, 0.27, 0.43, 0.58, 0.73, 0.88].map(frac),
+    crossings: [0.07, 0.22, 0.38, 0.52, 0.68, 0.83, 0.95].map(frac),
+    bumps: [0.18, 0.47, 0.77].map(frac),
+    checkpoints: [0.33, 0.63, 0.9].map(frac),
+    junctions: [0.15, 0.4, 0.65, 0.9].map(frac),
+  };
+  const iAt = (sv: number) => Math.floor(sv / tr.step) % tr.n;
+  // zebra crossings
+  {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d')!;
+    x.fillStyle = 'rgba(240,238,230,0.92)'; for (let k = 0; k < 8; k++) x.fillRect(k * 32 + 4, 0, 18, 64);
+    const t = keep(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace;
+    const mat = keep(new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: wet ? 0.3 : 0.7, polygonOffset: true, polygonOffsetFactor: -1 }));
+    const geo = keep(new THREE.PlaneGeometry(ROAD_HALF * 2, 3.2).rotateX(-Math.PI / 2));
+    const zm = new THREE.InstancedMesh(geo, mat, layout.crossings.length);
+    layout.crossings.forEach((sv, k) => zm.setMatrixAt(k, basis(tr, iAt(sv), 1, 0, 0.03).multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2))));
+    zm.receiveShadow = true; g.add(zm);
+  }
+  // bus bays: yellow box markings on the kerb lane + a bus halt sprite
+  {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 256; const x = c.getContext('2d')!;
+    x.strokeStyle = '#ffcc00'; x.lineWidth = 6; x.strokeRect(4, 4, 56, 248);
+    for (let y = 20; y < 250; y += 28) { x.beginPath(); x.moveTo(6, y); x.lineTo(58, y + 22); x.stroke(); }
+    const t = keep(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace;
+    const mat = keep(new THREE.MeshBasicMaterial({ map: t, transparent: true, polygonOffset: true, polygonOffsetFactor: -1, color: night ? 0x777777 : 0xffffff }));
+    const geo = keep(new THREE.PlaneGeometry(2.8, 16).rotateX(-Math.PI / 2));
+    const bm = new THREE.InstancedMesh(geo, mat, layout.stops.length);
+    layout.stops.forEach((sv, k) => { const p = tr.at(sv, LANE + 0.6); bm.setMatrixAt(k, new THREE.Matrix4().makeRotationY(tr.heading(sv)).setPosition(p.x, 0.032, p.z)); });
+    g.add(bm);
+    layout.stops.forEach((sv) => { const p = tr.at(sv, ROAD_HALF + WALK * 0.55); spots.push({ name: 'halt', x: p.x, z: p.z, h: 3.2 }); });
+  }
+  // speed bumps: low yellow-black humps
+  {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 16; const x = c.getContext('2d')!;
+    for (let k = 0; k < 8; k++) { x.fillStyle = k % 2 ? '#111' : '#f2c200'; x.fillRect(k * 16, 0, 16, 16); }
+    const t = keep(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace;
+    const geo = keep(new THREE.CylinderGeometry(0.35, 0.35, ROAD_HALF * 2, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2));
+    geo.scale(1, 0.32, 1);
+    const mat = keep(new THREE.MeshStandardMaterial({ map: t, roughness: 0.8 }));
+    const hm = new THREE.InstancedMesh(geo, mat, layout.bumps.length);
+    layout.bumps.forEach((sv, k) => hm.setMatrixAt(k, basis(tr, iAt(sv), 1, 0, 0).multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2))));
+    g.add(hm);
+  }
+  // side roads at junctions, each with a Buddha shrine on the corner
+  {
+    const geo = keep(new THREE.PlaneGeometry(7.2, 70).translate(0, 0, 35).rotateX(-Math.PI / 2));
+    const sm = new THREE.InstancedMesh(geo, roadMat, layout.junctions.length * 2);
+    let k = 0;
+    for (const sv of layout.junctions) for (const side of [1, -1]) {
+      const i = iAt(sv), p = tr.pos[i].clone().addScaledVector(tr.left[i], side * (ROAD_HALF + WALK - 0.2));
+      const ang = Math.atan2(tr.left[i].x * side, tr.left[i].z * side);
+      sm.setMatrixAt(k++, new THREE.Matrix4().makeRotationY(ang).setPosition(p.x, 0.19, p.z));
+    }
+    sm.receiveShadow = true; g.add(sm);
+  }
+  // lamp glows at night (poles are every 16 samples)
+  if (night) {
+    const tex = keep(glowTexture());
+    const pos: THREE.Vector3[] = [];
+    for (let i = 4, k = 0; i < tr.n; i += 16, k++) pos.push(tr.pos[i].clone().addScaledVector(tr.left[i], (k % 2 ? 1 : -1) * (ROAD_HALF - 0.6)).setY(8.6));
+    const lg = new THREE.InstancedMesh(keep(new THREE.PlaneGeometry(1, 1)), keep(new THREE.MeshBasicMaterial({ map: tex, color: 0xffc77a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })), pos.length);
+    const pool = new THREE.InstancedMesh(keep(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), keep(new THREE.MeshBasicMaterial({ map: tex, color: 0x6a4a22, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })), pos.length);
+    const m = new THREE.Matrix4();
+    pos.forEach((p, k) => { lg.setMatrixAt(k, m.makeScale(3.2, 3.2, 3.2).setPosition(p)); pool.setMatrixAt(k, m.makeScale(11, 1, 11).setPosition(p.x, 0.05, p.z)); });
+    lg.onBeforeRender = (_r, _s, cam) => { lg.quaternion.copy(cam.quaternion); };
+    g.add(lg, pool);
+  }
+
+  const sprites = buildSprites(spots, propsMap, night);
   keep(sprites); g.add(sprites.group);
 
   // ── landmarks ──
@@ -309,8 +389,43 @@ export async function buildWorld(city: CityDef): Promise<World> {
     t.position.set(cx + 20, 0, cz + 10); g.add(t);
   }
 
+  if (city.lake) {
+    // the lake sits inside the loop, ringed by the white scalloped cloud wall
+    let minR = Infinity; for (const p of tr.pos) minR = Math.min(minR, Math.hypot(p.x - cx, p.z - cz));
+    const rx = (minR - 26) * 1.1, rz = minR - 26;
+    const water = new THREE.Mesh(keep(new THREE.CircleGeometry(1, 64)), keep(new THREE.MeshStandardMaterial({ color: night ? 0x0d1a2a : 0x2f5e6e, roughness: 0.08, metalness: 0.6 })));
+    water.rotation.x = -Math.PI / 2; water.scale.set(rx, rz, 1); water.position.set(cx, 0.04, cz); g.add(water);
+    const n = 160, wall = new THREE.InstancedMesh(keep(new THREE.CylinderGeometry(0.9, 0.9, 1.2, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2)), white, n);
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2, x = cx + Math.cos(a) * (rx + 1.2), z = cz + Math.sin(a) * (rz + 1.2);
+      wall.setMatrixAt(k, new THREE.Matrix4().makeRotationY(-a).setPosition(x, 0.6, z));
+    }
+    g.add(wall);
+  }
+  if (city.hills) {
+    const hillMat = keep(new THREE.MeshStandardMaterial({ map: groundMap, color: 0x5c7a45, roughness: 1, flatShading: true }));
+    const hg = keep(new THREE.IcosahedronGeometry(1, 2));
+    let maxR = 0; for (const p of tr.pos) maxR = Math.max(maxR, Math.hypot(p.x - cx, p.z - cz));
+    for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * Math.PI * 2 + R() * 0.3, r = maxR + 260 + R() * 160, s = 120 + R() * 110;
+      const h = new THREE.Mesh(hg, hillMat); h.scale.set(s, s * (0.45 + R() * 0.3), s); h.position.set(cx + Math.cos(a) * r, -s * 0.12, cz + Math.sin(a) * r); g.add(h);
+    }
+  }
+  if (city.landmark === 'temple') {
+    const gold = keep(new THREE.MeshStandardMaterial({ color: 0xc89b3c, roughness: 0.35, metalness: 0.75 }));
+    const roofRed = keep(new THREE.MeshStandardMaterial({ color: 0x8a2a1e, roughness: 0.7 }));
+    const t = new THREE.Group();
+    t.add(new THREE.Mesh(keep(new THREE.BoxGeometry(46, 9, 30)), white).translateY(4.5));
+    t.add(new THREE.Mesh(keep(new THREE.BoxGeometry(50, 1, 34)), roofRed).translateY(9.5));
+    const oct = new THREE.Mesh(keep(new THREE.CylinderGeometry(9, 9, 12, 8)), white); oct.position.set(18, 6, 0); t.add(oct);
+    const cap = new THREE.Mesh(keep(new THREE.ConeGeometry(11, 8, 8)), gold); cap.position.set(18, 16, 0); t.add(cap);
+    const pav = new THREE.Mesh(keep(new THREE.ConeGeometry(8, 6, 4)), gold); pav.position.set(-8, 13, 0); pav.rotation.y = Math.PI / 4; t.add(pav);
+    t.position.set(cx + 30, 0, cz - 10); t.traverse((o) => { o.castShadow = true; }); g.add(t);
+  }
+  const fogColor = new THREE.Color(night ? 0x0b0e18 : wet ? 0x8f99a6 : dusk ? 0xd6936b : city.sky.fog);
+
   return {
-    group: g, track: tr, sun,
+    group: g, track: tr, sun, layout, night, wet, fogColor,
     dispose() { disposables.forEach((d) => d.dispose()); },
   };
 }
