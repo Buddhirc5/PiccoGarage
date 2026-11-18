@@ -26,7 +26,7 @@ export interface Track {
 
 /** Positions along the loop (metres of s) for gameplay features. */
 export interface Layout { stops: number[]; crossings: number[]; bumps: number[]; checkpoints: number[]; junctions: number[] }
-export interface World { group: THREE.Group; track: Track; sun: THREE.DirectionalLight; layout: Layout; night: boolean; wet: boolean; fogColor: THREE.Color; dispose(): void }
+export interface World { group: THREE.Group; track: Track; sun: THREE.DirectionalLight; sky: THREE.Mesh; dusk: boolean; layout: Layout; night: boolean; wet: boolean; fogColor: THREE.Color; dispose(): void }
 export interface WorldOptions { time: TimeOfDay; weather: Weather; quality: 'low' | 'medium' | 'high' }
 
 function rng(seed: number) { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
@@ -85,6 +85,7 @@ function asphalt(photo: HTMLImageElement): THREE.CanvasTexture {
     c.fillRect(251, 0, 10, 330); c.fillRect(251, 512, 10, 330); // centre dashes
   });
   t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8; // keeps the lane lines crisp towards the horizon
   return t;
 }
 const glassTex = () => canvasTex(128, 256, (c) => {
@@ -327,11 +328,21 @@ export async function buildWorld(city: CityDef, opt: WorldOptions): Promise<Worl
     const tex = keep(glowTexture());
     const pos: THREE.Vector3[] = [];
     for (let i = 4, k = 0; i < tr.n; i += 16, k++) pos.push(tr.pos[i].clone().addScaledVector(tr.left[i], (k % 2 ? 1 : -1) * (ROAD_HALF - 0.6)).setY(8.6));
-    const lg = new THREE.InstancedMesh(keep(new THREE.PlaneGeometry(1, 1)), keep(new THREE.MeshBasicMaterial({ map: tex, color: 0xffc77a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })), pos.length);
+    const bloom = opt.quality !== 'low'; // bloom on: small HDR-hot core, the post pass draws the halo
+    const lgm = keep(new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(0xffc77a).multiplyScalar(bloom ? 2.6 : 1), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    // per-instance camera-facing billboard in the vertex shader
+    lgm.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        mvPosition.xy += position.xy * length(instanceMatrix[0].xyz);
+        gl_Position = projectionMatrix * mvPosition;`);
+    };
+    const lg = new THREE.InstancedMesh(keep(new THREE.PlaneGeometry(1, 1)), lgm, pos.length);
+    lg.frustumCulled = false;
     const pool = new THREE.InstancedMesh(keep(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), keep(new THREE.MeshBasicMaterial({ map: tex, color: 0x6a4a22, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })), pos.length);
     const m = new THREE.Matrix4();
-    pos.forEach((p, k) => { lg.setMatrixAt(k, m.makeScale(3.2, 3.2, 3.2).setPosition(p)); pool.setMatrixAt(k, m.makeScale(11, 1, 11).setPosition(p.x, 0.05, p.z)); });
-    lg.onBeforeRender = (_r, _s, cam) => { lg.quaternion.copy(cam.quaternion); };
+    const ls = bloom ? 1.7 : 3.2;
+    pos.forEach((p, k) => { lg.setMatrixAt(k, m.makeScale(ls, ls, ls).setPosition(p)); pool.setMatrixAt(k, m.makeScale(11, 1, 11).setPosition(p.x, 0.05, p.z)); });
     g.add(lg, pool);
   }
 
@@ -425,7 +436,7 @@ export async function buildWorld(city: CityDef, opt: WorldOptions): Promise<Worl
   const fogColor = new THREE.Color(night ? 0x0b0e18 : wet ? 0x8f99a6 : dusk ? 0xd6936b : city.sky.fog);
 
   return {
-    group: g, track: tr, sun, layout, night, wet, fogColor,
+    group: g, track: tr, sun, sky, dusk, layout, night, wet, fogColor,
     dispose() { disposables.forEach((d) => d.dispose()); },
   };
 }

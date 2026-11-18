@@ -1,5 +1,5 @@
 import { ui as sfx, unlockAudio } from '../core/audio';
-import { setStage } from '../core/renderer';
+import { setStage, warmUp } from '../core/renderer';
 import { settings } from '../core/settings';
 import { track } from '../core/track';
 import { TYPE_INFO, type EventSpec } from '../game/career';
@@ -24,6 +24,7 @@ export async function startDrive(spec: EventSpec, vehicleId: string): Promise<vo
   await unlockAudio();
   const drive = new Drive(spec, veh.id);
   try { await drive.load(); } catch (e) { console.error(e); toast('Could not load this city. Please try again.'); nav.tab('home'); return; }
+  await warmUp(drive); // compile every shader behind the loading screen
   active = drive;
   setStage(drive);
   track('drive_start', { city: c.id, vehicle: veh.id, mode: spec.type, event: spec.id, quality: settings.quality });
@@ -165,7 +166,18 @@ function buildHud(drive: Drive) {
   path.closePath();
   const dot = (sv: number, color: string, r: number) => { const p = tr.at(sv, 0); mc.fillStyle = color; mc.beginPath(); mc.arc(p.x * sc + ox, p.z * sc + oz, r, 0, 7); mc.fill(); };
 
-  let lastCount = -1, raf = 0, alive = true, lastSpeed = '', lastT = performance.now();
+  root.classList.toggle('nopost', !drive.post);
+  // only touch the DOM when a value visibly changes (iOS restyles on every write)
+  const memo = new Map<object, string>();
+  const put = (el: HTMLElement | SVGElement, key: 'dash' | 'text' | 'display', v: string) => {
+    const k = memo.get(el as object) ?? '';
+    const tag = key + ':' + v;
+    if (k === tag) return;
+    memo.set(el as object, tag);
+    if (key === 'dash') el.style.strokeDasharray = v; else if (key === 'text') el.textContent = v; else el.style.display = v;
+  };
+  const q = (x: number) => Math.round(x * 200) / 200;
+  let lastCount = -1, raf = 0, alive = true, lastSpeed = '', lastT = performance.now(), mmF = -1;
   const tick = () => {
     if (!alive) return;
     raf = requestAnimationFrame(tick);
@@ -173,10 +185,10 @@ function buildHud(drive: Drive) {
     const s = drive.hud;
     const sp = String(Math.round(s.kmh));
     if (sp !== lastSpeed) { speedB.textContent = sp; lastSpeed = sp; }
-    valRing.style.strokeDasharray = `${C * ARC * Math.min(1, s.kmh / (veh.topSpeed * 1.35))} ${C}`;
-    rpmRing.style.strokeDasharray = `${C2 * ARC * s.rpm} ${C2}`;
-    gearEl.textContent = s.reverse ? 'R' : String(s.gear);
-    boostRing.style.strokeDasharray = `${boostC * s.boost} ${boostC}`;
+    put(valRing, 'dash', `${(C * ARC * q(Math.min(1, s.kmh / (veh.topSpeed * 1.35)))).toFixed(1)} ${C}`);
+    put(rpmRing, 'dash', `${(C2 * ARC * q(s.rpm)).toFixed(1)} ${C2}`);
+    put(gearEl, 'text', s.reverse ? 'R' : String(s.gear));
+    put(boostRing, 'dash', `${(boostC * q(s.boost)).toFixed(1)} ${boostC}`);
     boostB.classList.toggle('ready', s.boost > 0.3); boostB.classList.toggle('on', s.boosting);
     root.classList.toggle('incab', drive.camMode === 1);
     root.classList.toggle('boosting', s.boosting);
@@ -190,13 +202,13 @@ function buildHud(drive: Drive) {
     if (objective.textContent !== txt) objective.textContent = txt;
     // drift combo
     combo.classList.toggle('on', s.drift.active);
-    if (s.drift.active) { (combo.children[0] as HTMLElement).textContent = fmtNum(s.drift.score); (combo.children[2] as HTMLElement).textContent = `x${s.drift.mult}`; }
+    if (s.drift.active) { put(combo.children[0] as HTMLElement, 'text', fmtNum(s.drift.score)); put(combo.children[2] as HTMLElement, 'text', `x${s.drift.mult}`); }
     // police
     root.classList.toggle('pursuit', s.heat > 0);
-    heatPill.style.display = s.heat > 0 ? '' : 'none';
-    if (s.heat > 0) (heatPill.lastChild as HTMLElement).textContent = `Heat ${s.heat} · ${s.policeGap !== null ? Math.max(0, Math.round(s.policeGap)) : '—'} m`;
+    put(heatPill, 'display', s.heat > 0 ? '' : 'none');
+    if (s.heat > 0) put(heatPill.lastChild as HTMLElement, 'text', `Heat ${s.heat} · ${s.policeGap !== null ? Math.max(0, Math.round(s.policeGap)) : '—'} m`);
     // bus stop guide
-    stopEl.style.display = s.stop ? '' : 'none';
+    put(stopEl, 'display', s.stop ? '' : 'none');
     if (s.stop) {
       (stopEl.querySelector('b') as HTMLElement).textContent = s.stop.dist > 8 ? `Bus stop in ${s.stop.dist} m` : s.stop.boarding > 0 ? 'Boarding…' : 'Stop in the yellow bay';
       (stopEl.querySelector('span') as HTMLElement).textContent = `Stop ${s.stop.index + 1} of ${s.stop.total}${spec.type === 'route' ? ` · comfort ${Math.round(s.stop.comfort * 100)}%` : ''}`;
@@ -214,6 +226,7 @@ function buildHud(drive: Drive) {
       else if (stepT > 14) { step++; stepT = 0; }
     }
     // minimap
+    if (++mmF % 3 === 0) {
     mc.clearRect(0, 0, 208, 208);
     mc.lineJoin = 'round'; mc.strokeStyle = 'rgba(255,255,255,.32)'; mc.lineWidth = 9; mc.stroke(path);
     if (s.stop) lay.stops.forEach((sv) => dot(sv, '#ffcc00', 4));
@@ -222,6 +235,7 @@ function buildHud(drive: Drive) {
     if (s.heat > 0) { const pm = (drive as unknown as { police: { pos: { x: number; z: number } } }).police; if (pm) { mc.fillStyle = Math.sin(now / 90) > 0 ? '#ff3b3b' : '#3b6bff'; mc.beginPath(); mc.arc(pm.pos.x * sc + ox, pm.pos.z * sc + oz, 7, 0, 7); mc.fill(); } }
     mc.fillStyle = '#e5383b'; mc.strokeStyle = '#fff'; mc.lineWidth = 3;
     mc.beginPath(); mc.arc(drive.pos.x * sc + ox, drive.pos.z * sc + oz, 8, 0, 7); mc.fill(); mc.stroke();
+    }
   };
   tick();
 

@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { live } from '../core/live';
 import { buzz, fx as sfxFx, horn as playHorn, startEngine, startSiren, startSqueal, ui as sfx, type EngineSound } from '../core/audio';
-import { environment, type Stage } from '../core/renderer';
+import { skyEnvironment, type Stage } from '../core/renderer';
 import { settings } from '../core/settings';
 import { starsFor, type EventSpec, type RaceResult } from './career';
 import { city as cityById, vehicle as vehicleById, type VehicleDef } from './data';
 import { Fx, glowSprite, glowTexture } from './fx';
-import { loadModel, type LoadedModel } from './models';
+import type { PostParams } from '../core/post';
+import { loadModel, shadowProxy, SHADOW_LAYER, type LoadedModel } from './models';
 import { levelInfo, levelReward, progress, record, save, stats, type Challenge } from './progress';
 import { PERSON_HEIGHT, buildPeople, type PersonName, type SpriteLayer, type SpriteSpot } from './sprites';
 import { LANE, LIMIT, ROAD_HALF, WALK, buildWorld, type Track, type World } from './world';
@@ -91,6 +92,12 @@ export class Drive implements Stage {
   private stopsS: number[] = []; private stopIdx = 0; private boardT = 0; private fares = 0; private comfort = 1; private passengers = 0; private lastStopTime = 0;
   private tmp = new THREE.Vector3(); private tmp2 = new THREE.Vector3();
   private glowTex = glowTexture();
+  /** Read by the renderer's post-processing (undefined on Low quality = plain render). */
+  post?: PostParams;
+  private flash = 0;
+  private envRT?: THREE.WebGLRenderTarget;
+  private camT = 0;
+  private get glowK() { return this.post ? 0.42 : 1; }
 
   constructor(public spec: EventSpec, vehicleId: string) {
     this.def = vehicleById(vehicleId);
@@ -105,11 +112,21 @@ export class Drive implements Stage {
     this.world = await buildWorld(c, { time: this.spec.time, weather: this.spec.weather, quality: q });
     this.track = this.world.track;
     this.scene.add(this.world.group);
-    this.scene.environment = environment();
-    this.scene.environmentIntensity = this.world.night ? 0.2 : 0.7;
+    const w = this.world;
+    this.envRT = skyEnvironment(w.sky, w.sun.userData.offset as THREE.Vector3, w.sun.color, w.night ? 0 : w.wet ? 6 : w.dusk ? 18 : 28,
+      new THREE.Color(w.night ? 0x1c2030 : w.wet ? 0x3a3d42 : 0x4b4a43));
+    this.scene.environment = this.envRT.texture;
+    if (w.night) {
+      // hero fill: a soft cool light riding with the camera so the car reads against the dark
+      const fill = new THREE.DirectionalLight(0xaab8ff, 0.9);
+      fill.position.set(0, 2, 6); fill.target.position.set(0, -1, -10);
+      this.camera.add(fill, fill.target); this.scene.add(this.camera);
+    }
+    this.scene.environmentIntensity = w.night ? 0.7 : w.wet ? 0.8 : 0.95;
     const far = (low ? 0.7 : 1) * (this.world.wet ? c.sky.fogFar * 0.6 : this.world.night ? c.sky.fogFar * 0.75 : c.sky.fogFar);
     this.scene.fog = new THREE.Fog(this.world.fogColor, this.world.wet ? 40 : 90, far);
     this.fx = new Fx(low, this.world.wet);
+    if (!low) this.post = { boost: 0, speed: 0, flash: 0, night: this.world.night };
     this.scene.add(this.fx.group);
     const tr = this.track, L = tr.length;
     for (let i = 0; i < tr.n; i++) {
@@ -119,10 +136,16 @@ export class Drive implements Stage {
 
     // player
     const g = progress.garage[this.def.id];
-    this.me = await loadModel(this.def.model);
+    this.me = await loadModel(this.def.model, false, false, !low);
     if (this.def.tintable) this.me.setTint(g.tint);
     this.me.setFinish(g.finish);
     this.body.add(this.me.root);
+    // the full-detail body is drawn on screen; a 6k-triangle copy casts its shadow
+    if (this.world.sun.castShadow) {
+      this.me.root.traverse((o) => { o.castShadow = false; });
+      this.body.add(await shadowProxy(this.def.model));
+      this.world.sun.shadow.camera.layers.enable(SHADOW_LAYER);
+    }
     if (g.glow) {
       const ug = new THREE.Mesh(new THREE.PlaneGeometry(this.def.width * 2.4, this.def.length * 1.35),
         new THREE.MeshBasicMaterial({ map: this.glowTex, color: g.glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.9 }));
@@ -138,7 +161,7 @@ export class Drive implements Stage {
     const count = Math.round(c.traffic * (low ? 0.5 : q === 'medium' ? 0.8 : 1) * (this.isRace ? 0.7 : 1));
     for (let k = 0; k < count; k++) {
       const name = TRAFFIC_MODELS[k % TRAFFIC_MODELS.length];
-      const model = await loadModel(`/assets/models/${name}.glb`, true);
+      const model = await loadModel(`/assets/models/${name}.glb`, true, true);
       const dir = k % 2 ? -1 : 1;
       const s = 80 + ((k + 0.5) / count) * (L - 120);
       const speed = (name === 'tuk' ? 8.5 : name === 'car' ? 11.5 : 9.5) + (k % 3);
@@ -150,7 +173,7 @@ export class Drive implements Stage {
     if (this.isRace) {
       const tints = ['#f2b705', '#1f6feb', '#16a34a', '#9333ea'];
       for (let k = 0; k < this.spec.rivals; k++) {
-        const model = await loadModel(this.def.model);
+        const model = await loadModel(this.def.model, false, true);
         if (this.def.tintable) model.setTint(tints[k]);
         if (this.world.night) this.addLights(model.root, model.size, false);
         const skill = this.spec.rivalSkill - k * 0.025;
@@ -169,7 +192,7 @@ export class Drive implements Stage {
 
     // police jeep (parked until heat starts)
     if (this.spec.police) {
-      const model = await loadModel('/assets/models/police.glb', true);
+      const model = await loadModel('/assets/models/police.glb', true, true);
       this.addPoliceBar(model.root, model.size);
       if (this.world.night) this.addLights(model.root, model.size, false);
       this.police = { model, s: -9999, lat: -LANE, dir: 1, speed: 0, target: 0, len: model.size.z, wid: model.size.x, pos: new THREE.Vector3(), heading: 0, behind: true, nm: true, police: true };
@@ -198,8 +221,10 @@ export class Drive implements Stage {
     const fz = size.z / 2, w = size.x * 0.36, y = Math.min(1.1, size.y * 0.35);
     const glow: THREE.Sprite[] = [], brake: THREE.Sprite[] = [];
     for (const x of [-w, w]) {
-      const h = glowSprite(this.glowTex, 0xfff3d6, this.world.night ? 1.6 : 0.01); h.position.set(x, y, fz + 0.1); root.add(h); glow.push(h);
-      const t = glowSprite(this.glowTex, 0xff2020, this.world.night ? 1.0 : 0.01); t.position.set(x, y, -fz - 0.1); root.add(t); brake.push(t);
+      // with bloom on, lamps are small HDR-hot cores and the bloom makes the halo
+      const k = this.glowK, hot = this.post ? 3.2 : 1;
+      const h = glowSprite(this.glowTex, new THREE.Color(0xfff3d6).multiplyScalar(hot), this.world.night ? 1.6 * k : 0.01); h.position.set(x, y, fz + 0.1); root.add(h); glow.push(h);
+      const t = glowSprite(this.glowTex, new THREE.Color(0xff2020).multiplyScalar(hot), this.world.night ? 1.0 * k : 0.01); t.position.set(x, y, -fz - 0.1); root.add(t); brake.push(t);
     }
     if (player) {
       this.lights.glow = glow; this.lights.brake = brake;
@@ -212,7 +237,7 @@ export class Drive implements Stage {
   }
   private addPoliceBar(root: THREE.Object3D, size: THREE.Vector3) {
     for (const [x, c] of [[-0.35, 0xff2030], [0.35, 0x2a5bff]] as const) {
-      const s = glowSprite(this.glowTex, c, 1.4); s.position.set(x, size.y + 0.1, size.z * 0.05); root.add(s); this.lights.bar.push(s);
+      const s = glowSprite(this.glowTex, new THREE.Color(c).multiplyScalar(this.post ? 3 : 1), 1.4); s.position.set(x, size.y + 0.1, size.z * 0.05); root.add(s); this.lights.bar.push(s);
     }
   }
 
@@ -437,7 +462,7 @@ export class Drive implements Stage {
     this.me.root.rotation.x += (THREE.MathUtils.clamp(-a * 0.004, -0.02, 0.02) - this.me.root.rotation.x) * Math.min(1, 5 * dt);
     this.me.root.position.y = Math.max(0, this.me.root.position.y - dt * 0.6) + (speed > 1 ? Math.sin(h.time * 31) * 0.004 : 0);
     const braking = brk > 0 || hand;
-    this.lights.brake.forEach((b) => b.scale.setScalar(braking ? 1.8 : this.world.night ? 1 : 0.01));
+    this.lights.brake.forEach((b) => b.scale.setScalar(braking ? 1.8 * this.glowK : this.world.night ? this.glowK : 0.01));
 
     // smoke, skids, boost flame
     const rear = this.tmp.set(this.pos.x - nfx * def.length * 0.42, 0, this.pos.z - nfz * def.length * 0.42);
@@ -450,6 +475,12 @@ export class Drive implements Stage {
     this.squeal?.set(sliding ? Math.min(1, Math.abs(slip) * 2.2) : brk > 0 && speed > 12 ? 0.35 : 0);
 
     this.updateCamera(dtReal, speed);
+    if (this.post) {
+      const p = this.post, k = 1 - Math.exp(-dtReal * 6);
+      p.boost += ((this.hud.boosting ? 1 : 0) - p.boost) * k;
+      p.speed = Math.min(1, speed / (this.st.top / 3.6));
+      this.flash = Math.max(0, this.flash - dtReal * 3); p.flash = this.flash;
+    }
     this.fx.update(dt, this.camera.position);
     const off = this.world.sun.userData.offset as THREE.Vector3;
     this.world.sun.position.copy(this.pos).add(off);
@@ -492,6 +523,7 @@ export class Drive implements Stage {
     if (impact > 8) {
       this.fx.sparkBurst(this.tmp2.set(at.x, 0.7, at.z), 18);
       this.shake = Math.min(0.6, impact * 0.03);
+      this.flash = Math.min(1, impact * 0.04);
       if (impact > 14) this.slowmo = 0.6;
       if (progress.haptics) buzz(impact > 14 ? [40, 30, 60] : 40);
       sfx.bump(); this.onEvent('crash', '');
@@ -574,7 +606,7 @@ export class Drive implements Stage {
     p.lat += THREE.MathUtils.clamp(this.lat - p.lat, -2.5 * dt, 2.5 * dt);
     this.siren?.set(Math.max(0.2, 1 - Math.abs(gap) / 220));
     const flash = Math.sin(this.heatT * 18) > 0;
-    this.lights.bar.forEach((b, i) => b.scale.setScalar((i === 0) === flash ? 2 : 0.6));
+    this.lights.bar.forEach((b, i) => b.scale.setScalar(((i === 0) === flash ? 2 : 0.6) * this.glowK));
     if (gap > 160) { this.lostT += dt; if (this.lostT > 5) this.escape(); } else this.lostT = 0;
     if (gap < this.def.length / 2 + 6 && gap > -4 && Math.abs(this.vf) < 4) { this.caughtT += dt; if (this.caughtT > 2.2) this.caughtBy(); } else this.caughtT = Math.max(0, this.caughtT - dt);
     if (this.heatT > 30 + h.heat * 10 && gap > 80) this.escape();
@@ -755,6 +787,10 @@ export class Drive implements Stage {
       fov = (tuk ? 64 : 58) + sp * 14;
     }
     if (this.hud.boosting) fov += 10;
+    // at the top of the speed range a faint road buzz sells the speed (smooth, not random jitter)
+    this.camT += dt;
+    const hs = Math.max(0, sp - 0.7) / 0.3 * (this.camMode === 1 ? 0.6 : 1) + (this.hud.boosting ? 0.6 : 0);
+    if (hs > 0) { cam.position.y += Math.sin(this.camT * 31) * 0.014 * hs; cam.position.x += Math.sin(this.camT * 23.7) * 0.01 * hs; }
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 1.6);
       cam.position.x += (Math.random() - 0.5) * this.shake; cam.position.y += (Math.random() - 0.5) * this.shake * 0.6;
@@ -822,5 +858,6 @@ export class Drive implements Stage {
     this.fx.dispose();
     this.glowTex.dispose();
     this.world.dispose();
+    this.envRT?.dispose();
   }
 }

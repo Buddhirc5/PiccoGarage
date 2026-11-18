@@ -592,7 +592,7 @@ body.driving .mbar { height: 38px; max-width: 250px; }
 .coach.at-brake { right: max(100px, calc(var(--sr) + 90px)); bottom: calc(130px + var(--sb)); }
 .coach.at-steer { left: max(18px, var(--sl)); bottom: calc(118px + var(--sb)); }
 .coach.at-boost { right: max(150px, calc(var(--sr) + 140px)); bottom: calc(190px + var(--sb)); }
-.hud.boosting::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(79,195,255,.18) 80%), repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,.08) 0 1deg, transparent 1deg 7deg); mask: radial-gradient(ellipse at center, transparent 40%, #000 75%); -webkit-mask: radial-gradient(ellipse at center, transparent 40%, #000 75%); animation: streak .25s linear infinite; }
+.hud.boosting.nopost::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(79,195,255,.18) 80%), repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,.08) 0 1deg, transparent 1deg 7deg); mask: radial-gradient(ellipse at center, transparent 40%, #000 75%); -webkit-mask: radial-gradient(ellipse at center, transparent 40%, #000 75%); animation: streak .25s linear infinite; }
 @keyframes streak { to { transform: rotate(4deg); } }
 .f.nm { box-shadow: inset 0 0 0 1px rgba(79,195,255,.6); } .f.dr { box-shadow: inset 0 0 0 1px rgba(255,107,87,.6); }
 .f.good { box-shadow: inset 0 0 0 1px rgba(48,209,88,.6); } .f.warn { box-shadow: inset 0 0 0 1px rgba(255,59,48,.8); background: rgba(80,10,12,.7); }

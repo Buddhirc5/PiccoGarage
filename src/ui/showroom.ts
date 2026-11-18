@@ -3,6 +3,7 @@ import { environment, type Stage } from '../core/renderer';
 import { VEHICLES, type VehicleId } from '../game/data';
 import { loadModel, type LoadedModel } from '../game/models';
 import { progress } from '../game/progress';
+import { settings } from '../core/settings';
 
 /** 3D turntable on a transparent canvas: the CSS gradient and giant type show through. */
 export class Showroom implements Stage {
@@ -37,7 +38,7 @@ export class Showroom implements Stage {
   async show(id: VehicleId): Promise<void> {
     const t = ++this.token;
     const def = VEHICLES.find((v) => v.id === id)!;
-    const m = await loadModel(def.model);
+    const m = await loadModel(def.model, false, false, settings.quality !== 'low');
     if (t !== this.token) { m.dispose(); return; }
     if (this.model) { this.pivot.remove(this.model.root); this.model.dispose(); }
     this.model = m; this.len = def.length; this.h = m.size.y; this.intro = 1;
