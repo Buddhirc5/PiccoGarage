@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { live } from '../core/live';
-import { buzz, fx as sfxFx, horn as playHorn, startEngine, startSiren, startSqueal, ui as sfx, type EngineSound } from '../core/audio';
+import { buzz, fx as sfxFx, horn as playHorn, prepareEngine, startEngine, startSiren, startSqueal, ui as sfx, type EngineSound } from '../core/audio';
 import { skyEnvironment, type Stage } from '../core/renderer';
 import { settings } from '../core/settings';
 import { starsFor, type EventSpec, type RaceResult } from './career';
@@ -209,6 +209,7 @@ export class Drive implements Stage {
     this.syncMovers(0);
     window.addEventListener('keydown', this.onKey);
     window.addEventListener('keyup', this.onKey);
+    await prepareEngine(this.def.engine);
     this.engine = startEngine(this.def.engine);
     this.squeal = startSqueal();
     if (this.police) this.siren = startSiren();

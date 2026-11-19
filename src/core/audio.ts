@@ -1,4 +1,5 @@
 import { settings } from './settings';
+import { engineLayers, hornSample, loadEngine, loadHorns } from './samples';
 
 /**
  * Sound engine. Engines, horns and UI sounds are synthesised with Web Audio
@@ -20,6 +21,7 @@ export async function unlockAudio(): Promise<void> {
     sfx = ctx.createGain();
     sfx.gain.value = settings.sound * duck;
     sfx.connect(limiter).connect(ctx.destination);
+    void loadHorns(ctx);
   }
   if (ctx.state !== 'running') await ctx.resume().catch(() => {});
 }
@@ -69,8 +71,15 @@ function noiseBurst(dur: number, vol: number, cutoff: number) {
 // ── engine ──────────────────────────────────────────────────────────────────
 export interface EngineSound { update(rpm01: number, load01: number, speed01: number): void; stop(): void }
 
+/** Decode this engine's recordings before the drive starts (no-op if there are none). */
+export async function prepareEngine(kind: 'diesel' | 'twostroke'): Promise<void> {
+  if (ctx) await loadEngine(ctx, kind);
+}
+
 export function startEngine(kind: 'diesel' | 'twostroke'): EngineSound {
   if (!ctx) return { update() {}, stop() {} };
+  const layers = engineLayers(kind);
+  if (layers) return sampledEngine(ctx, kind, layers);
   const c = ctx;
   const out = c.createGain(); out.gain.value = 0; out.connect(sfx);
   const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 1.2; lp.connect(out);
@@ -103,6 +112,50 @@ export function startEngine(kind: 'diesel' | 'twostroke'): EngineSound {
   };
 }
 
+/**
+ * Engine from real recordings: each loop was recorded at one RPM; the two
+ * nearest the current RPM crossfade (equal power) and are re-pitched towards
+ * it, as racing games do. Throttle opens a filter and adds level, so on-load
+ * sounds harder than coasting. Road and wind noise rides on top with speed.
+ */
+function sampledEngine(c: AudioContext, kind: string, layers: { buf: AudioBuffer; rpm: number }[]): EngineSound {
+  const out = c.createGain(); out.gain.value = 0; out.connect(sfx);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2500; lp.Q.value = 0.5; lp.connect(out);
+  const voices = layers.map((l) => {
+    const s = c.createBufferSource(); s.buffer = l.buf; s.loop = true;
+    const g = c.createGain(); g.gain.value = 0;
+    s.connect(g).connect(lp);
+    s.start(0, Math.random() * l.buf.duration); // random phase so loops never line up
+    return { s, g, rpm: l.rpm };
+  });
+  const n = c.createBufferSource(); n.buffer = noise(); n.loop = true;
+  const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 500; nf.Q.value = 0.4;
+  const ng = c.createGain(); ng.gain.value = 0; n.connect(nf).connect(ng).connect(sfx); n.start();
+  const span = kind === 'diesel' ? 0.55 : 0.7; // how far a loop is re-pitched across its band
+  return {
+    update(rpm, load, speed) {
+      const t = c.currentTime;
+      // find the pair of loops around this RPM
+      let i = 0; while (i < voices.length - 1 && voices[i + 1].rpm < rpm) i++;
+      const a = voices[i], b = voices[Math.min(i + 1, voices.length - 1)];
+      const f = a === b ? 0 : Math.min(1, Math.max(0, (rpm - a.rpm) / (b.rpm - a.rpm)));
+      for (const v of voices) {
+        const w = v === a ? Math.cos(f * Math.PI / 2) : v === b ? Math.sin(f * Math.PI / 2) : 0;
+        v.g.gain.setTargetAtTime(w, t, 0.06);
+        const rate = Math.min(1.7, Math.max(0.6, 1 + (rpm - v.rpm) * span * 2));
+        v.s.playbackRate.setTargetAtTime(rate, t, 0.05);
+      }
+      lp.frequency.setTargetAtTime(1400 + 5200 * load + 2000 * rpm, t, 0.08);
+      out.gain.setTargetAtTime(0.32 + 0.26 * load + 0.1 * rpm, t, 0.08);
+      ng.gain.setTargetAtTime(0.14 * speed * speed, t, 0.2); nf.frequency.setTargetAtTime(400 + 1400 * speed, t, 0.2);
+    },
+    stop() {
+      out.gain.setTargetAtTime(0, c.currentTime, 0.1); ng.gain.setTargetAtTime(0, c.currentTime, 0.1);
+      setTimeout(() => { [...voices.map((v) => v.s), n].forEach((x) => { try { x.stop(); } catch { /* done */ } }); out.disconnect(); ng.disconnect(); }, 400);
+    },
+  };
+}
+
 // ── horns ───────────────────────────────────────────────────────────────────
 export async function setCustomHorn(data: ArrayBuffer | null): Promise<boolean> {
   if (!data) { customHorn = null; return true; }
@@ -122,6 +175,20 @@ export function horn(id: string): () => void {
     const e = c.currentTime; g.gain.cancelScheduledValues(e); g.gain.setTargetAtTime(0.0001, e, 0.04);
     nodes.forEach((n) => { try { n.stop(e + 0.25); } catch { /* done */ } });
   };
+  const rec = hornSample(id);
+  if (rec) {
+    // real recording: attack plays once, the steady middle loops while held, release on let-go
+    const s = c.createBufferSource(); s.buffer = rec.buf;
+    if (rec.loop) { s.loop = true; s.loopStart = rec.loop[0]; s.loopEnd = rec.loop[1]; }
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0.6 * rec.gain, t);
+    s.connect(g); s.start();
+    if (!rec.loop) return () => {};
+    return () => {
+      const e = c.currentTime; s.loop = false; // let the tail play out naturally
+      g.gain.setTargetAtTime(0.0001, e + 0.12, 0.05);
+      try { s.stop(e + 0.5); } catch { /* done */ }
+    };
+  }
   if (id === 'custom' && customHorn) {
     const s = c.createBufferSource(); s.buffer = customHorn; s.connect(g); s.start();
     return () => {}; // custom sounds play through once
