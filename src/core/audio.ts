@@ -146,7 +146,7 @@ function sampledEngine(c: AudioContext, kind: string, layers: { buf: AudioBuffer
         v.s.playbackRate.setTargetAtTime(rate, t, 0.05);
       }
       lp.frequency.setTargetAtTime(1400 + 5200 * load + 2000 * rpm, t, 0.08);
-      out.gain.setTargetAtTime(0.32 + 0.26 * load + 0.1 * rpm, t, 0.08);
+      out.gain.setTargetAtTime(0.42 + 0.3 * load + 0.1 * rpm, t, 0.08);
       ng.gain.setTargetAtTime(0.14 * speed * speed, t, 0.2); nf.frequency.setTargetAtTime(400 + 1400 * speed, t, 0.2);
     },
     stop() {

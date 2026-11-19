@@ -1,0 +1,20 @@
+{
+  "engines": {
+    "twostroke": [
+      { "file": "tuk_idle.wav", "rpm": 0 },
+      { "file": "tuk_mid.wav", "rpm": 0.5 },
+      { "file": "tuk_high.wav", "rpm": 1 }
+    ],
+    "diesel": [
+      { "file": "bus_idle.wav", "rpm": 0 },
+      { "file": "bus_mid.wav", "rpm": 0.5 },
+      { "file": "bus_high.wav", "rpm": 1 }
+    ]
+  },
+  "horns": {
+    "air": { "file": "horn_air.m4a", "loop": [0.4, 1.5] },
+    "steady": { "file": "horn_steady.m4a", "loop": [0.5, 2.3] },
+    "twin": { "file": "horn_twin.m4a", "loop": [0.25, 0.9] },
+    "beep": { "file": "horn_beep.m4a" }
+  }
+}
