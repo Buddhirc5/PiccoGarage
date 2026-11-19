@@ -205,7 +205,7 @@ begin
     'passengers', (select coalesce(sum((props->>'passengers')::int), 0) from de),
     'stations', (select coalesce(jsonb_agg(x order by x.n desc), '[]'::jsonb) from (select props->>'station' k, count(*) n from public.picco_events where type = 'music' and created_at >= since group by 1) x),
     'levels', (select coalesce(jsonb_agg(x order by x.k), '[]'::jsonb) from (select (snap->>'level')::int k, count(*) n from public.picco_players where snap ? 'level' group by 1) x),
-    'config', (select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) from public.picco_config));
+    'config', (select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) from public.picco_config)));
 end $$;
 
 do $$ declare f text; begin
