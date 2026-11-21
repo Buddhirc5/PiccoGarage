@@ -5,6 +5,7 @@ import { setStage } from '../core/renderer';
 import { ui as sfx } from '../core/audio';
 import { fmtNum, h, mount, setBackdrop } from './dom';
 import { icon } from './icons';
+import { openMusic } from './music';
 import { openSettings } from './settings';
 
 /** Navigation targets; main.ts fills these in (avoids import cycles). */
@@ -32,6 +33,7 @@ export function topBar(): HTMLElement {
     h('button.lvl', { 'aria-label': `Level ${li.level}`, style: `--p:${Math.round(li.pct * 100)}%`, onclick: () => { sfx.tap(); nav.tab('profile'); } }, h('b', {}, String(li.level))),
     h('div.res', {}, h('span.coin-pill', {}, icon('coin', 16), h('b.num', { id: 'coins' }, fmtNum(progress.coins))), h('span.gem-pill', {}, icon('gem', 15), h('b.num', {}, fmtNum(progress.gems)))),
     h('div.spacer'),
+    h('button.cbtn.sm', { 'aria-label': 'Music', onclick: () => openMusic() }, icon('music', 18)),
     h('button.cbtn.sm', { 'aria-label': 'Settings', onclick: () => openSettings() }, icon('gear', 18)),
   );
 }

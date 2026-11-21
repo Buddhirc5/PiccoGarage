@@ -11,7 +11,7 @@ import { shareCard } from './share';
 
 export function showResults(s: Summary): void {
   setStage(null); setBackdrop(null);
-  document.body.className = 'menu';
+  document.body.className = 'menu wide';
   const e = s.spec, ti = TYPE_INFO[e.type];
   const won = s.result.position === 1;
   const failed = e.type !== 'free' && !s.result.finished;
@@ -27,24 +27,27 @@ export function showResults(s: Summary): void {
   const next = s.stars > 0 ? EVENTS.find((x) => x.chapter === e.chapter && x.idx === e.idx + 1) ?? EVENTS.find((x) => x.chapter === e.chapter + 1 && x.idx === 0) : undefined;
   const fill = h('i');
 
+  // hero (result, headline, stars) and body (rewards, stats, actions): stacked in
+  // portrait, side by side in landscape so nothing is cut off on a sideways phone
   mount(h('div.screen.results', {},
     h('div.giant', { class: `giant${big.length > 3 ? ' t' : ''}` }, big),
-    h('div.body', {},
+    h('div.rhero', {},
       h('div.a', { style: '--i:0' }, h('span.tag', {}, icon(ti.icon, 14), `${ti.name} · ${city(e.city).name}`)),
       h('h1.title.a', { style: 'text-align:left;--i:1' }, headline),
       starsRow,
-      s.newBest ? h('div.a.newbest', { style: '--i:2' }, icon('trophy', 15), 'New personal best') : null,
+      s.newBest ? h('div.a.newbest', { style: '--i:2' }, icon('trophy', 15), 'New personal best') : null),
+    h('div.body', {},
       h('div.rw.a', { style: '--i:3' }, h('span', {}, icon('coin', 18), h('b.num', {}, `+${fmtNum(s.coins)}`)), h('span', {}, icon('star', 18), h('b.num', {}, `+${fmtNum(s.xp)} XP`)), s.gems ? h('span', {}, icon('gem', 18), h('b.num', {}, `+${s.gems}`)) : null),
       h('div.stats.a', { style: '--i:4' }, ...rows.map(([k, v]) => stat(k, v))),
       h('div.stats.a', { style: '--i:5' }, ...rows2.map(([k, v]) => stat(k, v))),
       ...s.challenges.map((c) => h('div.chdone.a', { style: '--i:6' }, icon('check', 15), `Challenge done: ${challengeLabel(c)} · +${fmtNum(c.reward)}`)),
       h('div.xp.a', { style: '--i:6' }, h('div.lb', {}, h('span', {}, `Level ${li.level}`), h('span.num', {}, `${fmtNum(li.into)} / ${fmtNum(li.next)} XP`)), h('div.t', {}, fill)),
-      next && eventUnlocked(next) ? h('button.cta.a', { style: '--i:7', onclick: () => nav.prerace(next.id) }, h('span', {}, `Next: ${next.title.replace(/^\S+ /, '')}`), h('i', {}, icon('right', 20)))
+      h('div.rfoot', {}, next && eventUnlocked(next) ? h('button.cta.a', { style: '--i:7', onclick: () => nav.prerace(next.id) }, h('span', {}, `Next: ${next.title.replace(/^\S+ /, '')}`), h('i', {}, icon('right', 20)))
         : h('button.cta.a', { style: '--i:7', onclick: () => nav.prerace(e.id) }, h('span', {}, e.type === 'free' ? 'Drive again' : 'Try again'), h('i', {}, icon('rotate', 20))),
       h('div.acts.a', { style: '--i:8' },
         h('button.pbtn', { onclick: () => nav.tab('home') }, icon('home', 17), 'Home'),
         next ? h('button.pbtn', { onclick: () => nav.prerace(e.id) }, icon('rotate', 17), 'Retry') : null,
-        h('button.pbtn', { onclick: () => shareCard(s) }, icon('share', 17), 'Share')),
+        h('button.pbtn', { onclick: () => shareCard(s) }, icon('share', 17), 'Share'))),
     )));
   setTimeout(() => (fill.style.width = `${li.pct * 100}%`), 50);
   if (failed) sfx.deny(); else { sfx.buy(); for (let i = 0; i < s.stars; i++) setTimeout(() => fx.star(i), 500 + i * 260); }

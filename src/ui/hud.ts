@@ -1,5 +1,6 @@
 import { ui as sfx, unlockAudio } from '../core/audio';
 import { setStage, warmUp } from '../core/renderer';
+import { openMusic } from './music';
 import { settings } from '../core/settings';
 import { track } from '../core/track';
 import { TYPE_INFO, type EventSpec } from '../game/career';
@@ -74,6 +75,8 @@ function buildHud(drive: Drive) {
   const gearB = hbtn(null, 'Drive or reverse', () => { drive.toggleGear(); gearB.textContent = drive.hud.reverse ? 'R' : 'D'; }, 'D');
   const camB = hbtn('camera', 'Change camera', () => { sfx.tap(); drive.nextCamera(); track('camera', { mode: drive.camMode }); });
   const pauseB = hbtn('pause', 'Pause', () => openPause());
+  // music mid-drive: pause while picking (and while iPhone needs its one tap), then carry on
+  const musicB = hbtn('music', 'Music', () => { drive.paused = true; openMusic(() => { drive.paused = false; }); });
   const boostC = 2 * Math.PI * 34;
   const boostB = hold(h('div.boostbtn', { role: 'button', 'aria-label': 'Boost', html: `<svg viewBox="0 0 80 80"><circle class="bt" cx="40" cy="40" r="34" fill="none" stroke-width="5"/><circle class="bv" cx="40" cy="40" r="34" fill="none" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 ${boostC}"/></svg>` }, h('span', {}, icon('lightning', 22), 'BOOST')),
     () => (drive.input.boost = true), () => (drive.input.boost = false));
@@ -117,7 +120,7 @@ function buildHud(drive: Drive) {
   const cockpit = h('div.cockpit', { style: `background-image:url(/assets/img/cockpit_${veh.kind === 'tuk' ? 'tuk' : 'bus'}.webp)` });
   const root = h('div.screen.hud', {},
     cockpit, heat,
-    h('div.tl', {}, h('div.tiny', {}, pauseB, camB), mini),
+    h('div.tl', {}, h('div.tiny', {}, pauseB, camB, musicB), mini),
     pills, h('div.tr', {}, speedo, heatPill),
     combo, stopEl, coach,
     steerBox,

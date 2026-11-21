@@ -323,10 +323,6 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
 
 @media (orientation: landscape) and (max-height: 560px) {
   body:not(.driving) #app { width: min(100vw, 760px); }
-  .results .giant { font-size: 24cqh; margin-top: 8px; }
-  .results .giant.t { font-size: 20cqh; margin-top: 8px; }
-  .results .body { gap: 10px; }
-  .results .title { font-size: 28px; }
 }
 
 /* minimised music: the video keeps playing off-screen, only a small pill shows */
@@ -616,3 +612,49 @@ body.driving .mbar { height: 38px; max-width: 250px; }
 .cl-t { grid-area: t; } .cl .bar2 { grid-area: b; } .cl-r { grid-area: r; grid-row: auto; }
 .day.today { animation: none; }
 .boostbtn span svg { position: static; transform: none; }
+
+/* ── results v3: hero + body; side by side on a sideways phone ── */
+.results .rhero { margin-top: auto; padding: 14px 18px 0; display: grid; gap: 12px; justify-items: start; }
+.results .body { margin-top: 0; }
+.rfoot { display: grid; gap: 12px; }
+@media (orientation: portrait) and (max-height: 700px) {
+  .results .giant { font-size: 34cqw; } .results .giant.t { font-size: 22cqw; margin-top: calc(3cqh + var(--st)); }
+  .results .rhero { gap: 9px; padding-top: 6px; } .results .rhero .title { font-size: 34px; }
+  .results .body { gap: 10px; } .results .stats { padding-top: 9px; } .results .rfoot { gap: 10px; } .results .rfoot .cta { height: 56px; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  body.wide #app { width: 100vw; }
+  .results { flex-direction: row; overflow: hidden; background: linear-gradient(100deg, #060607 0%, #3a080c 40%, var(--ember) 85%, #d9483a 100%); }
+  .results .giant, .results .giant.t { position: absolute; left: 0; top: 50%; width: 46%; margin: 0; translate: 0 -62%; font-size: min(30cqh, 17cqw); pointer-events: none; }
+  .results .giant.t { font-size: min(22cqh, 10cqw); }
+  .results .rhero { flex: 0 0 44%; margin: 0; position: relative; z-index: 1; align-content: center; gap: 10px;
+    padding: max(14px, var(--st)) 14px max(14px, var(--sb)) max(28px, calc(var(--sl) + 12px)); }
+  .results .rhero .title { font-size: clamp(26px, 9cqh, 40px); }
+  .results .bigstars i svg { width: 30px; height: 30px; }
+  .results .body { flex: 1; min-width: 0; margin: 0; overflow-y: auto; align-content: center; gap: 9px;
+    padding: max(12px, var(--st)) max(22px, calc(var(--sr) + 12px)) max(12px, var(--sb)) 18px; background: rgba(0, 0, 0, .16); }
+  .results .rw span { font-size: 16px; }
+  .results .stats { padding-top: 8px; } .results .stats b { font-size: 16px; } .results .stats span { font-size: 11.5px; }
+  .rfoot { display: flex; gap: 10px; align-items: center; }
+  .rfoot .cta { flex: 1; height: 50px; min-width: 0; } .rfoot .cta i { width: 38px; height: 38px; }
+  .rfoot .cta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rfoot .acts { flex: none; gap: 8px; }
+  .rfoot .acts .pbtn { font-size: 0; width: 46px; height: 46px; padding: 0; justify-content: center; gap: 0; }
+}
+
+/* music: the one-time iPhone video tap, with a hint and a way out */
+.mvid.show::after { content: none; }
+.mskip { display: none; }
+.mvid.show ~ .mskip { display: flex; flex-direction: column; align-items: center; gap: 10px; position: fixed; left: 50%; top: calc(50% + min(90px, 22.5vw) + 14px);
+  translate: -50% 0; z-index: 71; pointer-events: auto; width: max-content; max-width: 90vw; text-align: center; }
+.mskip span { font-size: 13.5px; font-weight: 600; text-shadow: 0 2px 8px rgba(0, 0, 0, .6); }
+.mskip button { height: 38px; padding: 0 20px; border-radius: 999px; background: rgba(255, 255, 255, .16); color: #fff; font-size: 14px; font-weight: 600; }
+.mvid.show { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .72), 0 20px 50px rgba(0, 0, 0, .6); background: #000; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .mvid.show { top: 42%; width: min(300px, 70vw); }
+  .mvid.show ~ .mskip { top: calc(42% + min(84px, 19.7vw) + 10px); flex-direction: row; gap: 14px; }
+}
+/* the music sheet scrolls instead of running off a short (landscape) screen */
+.msheet .sheet { max-height: calc(100dvh - 24px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+@media (orientation: landscape) and (max-height: 480px) { .msheet .stations { max-height: none; } }
+#music:has(.mvid.show) { z-index: 80; }

@@ -25,7 +25,11 @@ export function initMusic(): void {
   const next = h('button.mbtn', { 'aria-label': 'Next song', onclick: (e: Event) => { e.stopPropagation(); player?.next(); } }, icon('next', 16));
   bar = h('div.mbar', { role: 'button', 'aria-label': 'Music', onclick: openSheet },
     h('i.eq', {}, h('i'), h('i'), h('i')), h('div.mtx', {}, nameEl, titleEl), ppBtn, next);
-  root.replaceChildren(vidBox, bar);
+  // lets players back out of the one-time iPhone "tap play in the video" step
+  const skip = h('div.mskip', {},
+    h('span', {}, 'Tap ▶ in the video once to start your music'),
+    h('button', { onclick: () => { sfx.tap(); stopMusic(); } }, 'Cancel'));
+  root.replaceChildren(vidBox, skip, bar);
   render();
 }
 
@@ -38,6 +42,20 @@ function render() {
   // show the video only while it still needs a first tap
   vidBox.classList.toggle('show', !!player && !player.state.playing && !started);
   setDuck(playing);
+  flushWaiters();
+}
+
+/** Callbacks waiting for the music UI to be out of the way (sheet closed, no video prompt). */
+let waiters: (() => void)[] = [];
+function flushWaiters() {
+  if (sheet || vidBox.classList.contains('show') || !waiters.length) return;
+  const w = waiters; waiters = []; w.forEach((f) => f());
+}
+
+/** Open the station picker. onDone runs once the sheet is closed and any video prompt is done. */
+export function openMusic(onDone?: () => void): void {
+  if (onDone) waiters.push(onDone);
+  openSheet();
 }
 let started = false;
 
@@ -70,11 +88,11 @@ export function stopMusic(): void {
   render();
 }
 
-function closeSheet() { sheet?.remove(); sheet = null; }
+function closeSheet() { sheet?.remove(); sheet = null; flushWaiters(); }
 
 function openSheet() {
   sfx.tap();
-  closeSheet();
+  sheet?.remove(); sheet = null; // replace without firing waiters
   const list = h('div.stations');
   const row = (id: string, name: string, desc: string, has: boolean, onDelete?: () => void) => h('div', { class: `station${current === id ? ' on' : ''}${has ? '' : ' empty'}` },
     h('button.st-main', { onclick: () => playStation(id) }, h('i.st-ic', {}, icon(current === id && player?.state.playing ? 'pause' : 'music', 18)), h('div', {}, h('b', {}, name), h('span', {}, has ? desc : 'No playlist set yet'))),
