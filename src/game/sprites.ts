@@ -9,7 +9,8 @@ import peopleMeta from './people.json';
  */
 export type SpriteName = keyof typeof propsMeta;
 export type PersonName = keyof typeof peopleMeta;
-type Meta = Record<string, { u0: number; v0: number; u1: number; v1: number; aspect: number }>;
+/** frames/cols/du/dv/fps: an animated block (cols frames per row, du/dv apart, rows going down); absent = a still. */
+type Meta = Record<string, { u0: number; v0: number; u1: number; v1: number; aspect: number; frames?: number; cols?: number; du?: number; dv?: number; fps?: number }>;
 export interface SpriteSpot { name: string; x: number; z: number; h: number; flip?: boolean }
 
 export const HEIGHT: Record<SpriteName, [number, number]> = {
@@ -18,12 +19,18 @@ export const HEIGHT: Record<SpriteName, [number, number]> = {
 };
 export const PERSON_HEIGHT: Record<PersonName, number> = { man: 1.7, woman: 1.6, boy: 1.35, cop: 1.75, dog: 0.75, shrine: 2.2 };
 
-function material(atlas: THREE.Texture, night: boolean): THREE.MeshBasicMaterial {
+function material(atlas: THREE.Texture, night: boolean, time: { value: number }): THREE.MeshBasicMaterial {
   const mat = new THREE.MeshBasicMaterial({ map: atlas, alphaTest: 0.5, side: THREE.DoubleSide, color: night ? 0x4a5160 : 0xe6e6e6 });
   mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = time;
+    // aAnim = (frames, fps, phase, du): the frame is picked on the GPU, so animating
+    // every pedestrian costs nothing on the CPU and stays one draw call
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec4 uvRect;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv = mix(uvRect.xy, uvRect.zw, uv);')
+      .replace('#include <common>', '#include <common>\nattribute vec4 uvRect;\nattribute vec4 aAnim;\nattribute vec2 aGrid;\nuniform float uTime;')
+      .replace('#include <uv_vertex>', `#include <uv_vertex>
+        float frame = aAnim.x > 1.0 ? floor(mod(uTime * aAnim.y + aAnim.z, aAnim.x)) : 0.0;
+        float col = mod(frame, aGrid.x), row = floor(frame / aGrid.x);
+        vMapUv = mix(uvRect.xy, uvRect.zw, uv) + vec2(col * aAnim.w, -row * aGrid.y);`)
       .replace('#include <project_vertex>', `
         vec3 c = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
         float sx = instanceMatrix[0][0];
@@ -42,6 +49,10 @@ export interface SpriteLayer {
   group: THREE.Group;
   /** Move or hide instance i (h = 0 hides). */
   set(i: number, x: number, z: number, h: number, flip?: boolean, y?: number): void;
+  /** Animation speed for instance i (1 = the strip's own fps, 0 = hold the first frame). */
+  rate(i: number, r: number): void;
+  /** Advance animation time (seconds). */
+  tick(t: number): void;
   commit(): void;
   dispose(): void;
 }
@@ -50,7 +61,10 @@ function layer(spots: SpriteSpot[], atlas: THREE.Texture, meta: Meta, opts: { ni
   const group = new THREE.Group();
   const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
   const rect = new Float32Array(spots.length * 4);
-  const mesh = new THREE.InstancedMesh(geo, material(atlas, !!opts.night), Math.max(1, spots.length));
+  const anim = new Float32Array(spots.length * 4);
+  const grid = new Float32Array(spots.length * 2);
+  const time = { value: 0 };
+  const mesh = new THREE.InstancedMesh(geo, material(atlas, !!opts.night, time), Math.max(1, spots.length));
   if (opts.dynamic) mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const m = new THREE.Matrix4();
   const aspects = spots.map((s) => meta[s.name].aspect);
@@ -63,8 +77,24 @@ function layer(spots: SpriteSpot[], atlas: THREE.Texture, meta: Meta, opts: { ni
     const r = meta[s.name];
     set(i, s.x, s.z, s.h, s.flip);
     rect.set([r.u0, r.v0, r.u1, r.v1], i * 4);
+    const n = r.frames ?? 1;
+    anim.set([n, r.fps ?? 0, Math.random() * n, r.du ?? 0], i * 4); // random phase: nobody walks in step
+    grid.set([Math.max(1, r.cols ?? n), r.dv ?? 0], i * 2);
   });
   geo.setAttribute('uvRect', new THREE.InstancedBufferAttribute(rect, 4));
+  const animAttr = new THREE.InstancedBufferAttribute(anim, 4);
+  if (opts.dynamic) animAttr.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('aAnim', animAttr);
+  geo.setAttribute('aGrid', new THREE.InstancedBufferAttribute(grid, 2));
+  const baseFps = spots.map((s) => meta[s.name].fps ?? 0);
+  let animDirty = false;
+  const rate = (i: number, r: number) => {
+    const v = baseFps[i] * r, o = i * 4, cur = anim[o + 1];
+    if (Math.abs(cur - v) < 0.05) return;
+    // keep the frame continuous: t*old + phase == t*new + phase'
+    anim[o + 2] = (anim[o + 2] + time.value * (cur - v)) % Math.max(1, anim[o]);
+    anim[o + 1] = v; animDirty = true;
+  };
   mesh.frustumCulled = false;
   group.add(mesh);
 
@@ -86,7 +116,9 @@ function layer(spots: SpriteSpot[], atlas: THREE.Texture, meta: Meta, opts: { ni
     group.add(sh);
   }
   return {
-    group, set, commit() { mesh.instanceMatrix.needsUpdate = true; },
+    group, set, rate,
+    tick(t: number) { time.value = t; },
+    commit() { mesh.instanceMatrix.needsUpdate = true; if (animDirty) { animAttr.needsUpdate = true; animDirty = false; } },
     dispose() { geo.dispose(); (mesh.material as THREE.Material).dispose(); shGeo?.dispose(); shMat?.dispose(); shTex?.dispose(); },
   };
 }

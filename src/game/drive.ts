@@ -40,7 +40,7 @@ interface Mover {
   rival?: { prog: number; skill: number; top: number; latT: number; done: number; name: string; out: boolean };
   police?: boolean;
 }
-interface Person { name: PersonName; base: THREE.Vector3; pos: THREE.Vector3; h: number; vx: number; vz: number; walk: number; hop: number; hide: boolean; stop?: number; board?: number }
+interface Person { name: PersonName; base: THREE.Vector3; pos: THREE.Vector3; h: number; vx: number; vz: number; walk: number; hop: number; hide: boolean; stop?: number; board?: number; face?: boolean }
 
 const TRAFFIC_MODELS = ['car', 'car', 'tuk', 'lorry', 'car', 'sltb', 'tuk', 'pbus', 'car', 'pink'];
 const RIVAL_NAMES = ['Kasun', 'Dilshan', 'Tharindu', 'Sanjaya', 'Chamara', 'Nuwan'];
@@ -84,7 +84,7 @@ export class Drive implements Stage {
   private fx!: Fx;
   private raceDist = 0;
   private gear = 1;
-  private crowd: Person[] = []; private crowdLayer: SpriteLayer | null = null;
+  private crowd: Person[] = []; private crowdLayer: SpriteLayer | null = null; private crowdT = 0;
   // police
   private police: Mover | null = null; private heatT = 0; private lostT = 0; private caughtT = 0; private escaped = 0; private caught = 0; private checkedCp = new Set<number>();
   private lights: { glow: THREE.Sprite[]; brake: THREE.Sprite[]; spot: THREE.SpotLight | null; bar: THREE.Sprite[] } = { glow: [], brake: [], spot: null, bar: [] };
@@ -245,7 +245,7 @@ export class Drive implements Stage {
   // ── pedestrians, dogs, police officers, passengers ────────────────────────
   private async buildCrowd() {
     const tr = this.track, L = tr.length, lay = this.world.layout;
-    const tex = await new THREE.TextureLoader().loadAsync('/assets/tex/people.webp');
+    const tex = await new THREE.TextureLoader().loadAsync('/assets/tex/people_anim.webp'); // animated walk/trot/signal cycles
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const add = (name: PersonName, sv: number, lat: number, extra: Partial<Person> = {}) => {
       const base = tr.at(sv, lat);
@@ -254,7 +254,7 @@ export class Drive implements Stage {
     const n = settings.quality === 'low' ? 18 : 36;
     const peds: PersonName[] = ['man', 'woman', 'boy', 'man', 'woman'];
     for (let k = 0; k < n; k++) add(peds[k % peds.length], (k / n) * L + Math.random() * 20, (k % 2 ? 1 : -1) * (ROAD_HALF + WALK * 0.5), { walk: (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 0.5) });
-    for (let k = 0; k < 6; k++) add('dog', Math.random() * L, (Math.random() < 0.5 ? 1 : -1) * (ROAD_HALF + WALK + 1.5));
+    for (let k = 0; k < 6; k++) add('dog', Math.random() * L, (Math.random() < 0.5 ? 1 : -1) * (ROAD_HALF + WALK + 1.5), { walk: (Math.random() < 0.5 ? -1 : 1) * (0.7 + Math.random() * 0.6) });
     for (const sv of lay.junctions) add('shrine', sv + 9, ROAD_HALF + WALK + 1.6);
     if (this.spec.police) for (const sv of lay.checkpoints) add('cop', sv, ROAD_HALF + 0.9);
     this.stopsS.forEach((sv, k) => { const m = 2 + Math.floor(Math.random() * 4); for (let j = 0; j < m; j++) add(peds[j % 5], sv - 4 + j * 1.6, ROAD_HALF + 1.0 + (j % 2) * 0.6, { stop: k }); });
@@ -265,8 +265,12 @@ export class Drive implements Stage {
 
   private updateCrowd(dt: number) {
     if (!this.crowdLayer) return;
-    const tr = this.track;
+    const tr = this.track, layer = this.crowdLayer;
+    this.crowdT += dt; layer.tick(this.crowdT);
+    // camera right on the ground: a walker faces right on screen when moving along it
+    const e = this.camera.matrixWorld.elements, rx = e[0], rz = e[2];
     this.crowd.forEach((p, i) => {
+      const px = p.pos.x, pz = p.pos.z;
       if (p.hide) { this.crowdLayer!.set(i, 0, 0, 0); return; }
       if (p.board !== undefined) {
         // walking to the bus door, then gone
@@ -292,7 +296,12 @@ export class Drive implements Stage {
       }
       p.hop = Math.max(0, p.hop - dt);
       const y = p.hop > 0 ? Math.sin((p.hop / 0.35) * Math.PI) * 0.45 : 0;
-      this.crowdLayer!.set(i, p.pos.x, p.pos.z, p.h, p.walk < 0, y);
+      // gait speed follows ground speed (cycles were made for ~1.1 m/s), so feet do not slide
+      const mx = (p.pos.x - px) / Math.max(dt, 1e-3), mz = (p.pos.z - pz) / Math.max(dt, 1e-3), sp = Math.hypot(mx, mz);
+      if (p.name === 'cop') layer.rate(i, 1);
+      else if (p.name !== 'shrine') layer.rate(i, sp > 0.15 ? Math.min(2.2, sp / 1.1) : 0);
+      if (sp > 0.15) p.face = mx * rx + mz * rz < 0;
+      layer.set(i, p.pos.x, p.pos.z, p.h, p.face ?? false, y);
     });
     this.crowdLayer.commit();
   }
