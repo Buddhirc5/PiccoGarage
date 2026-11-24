@@ -24,6 +24,8 @@ export interface Progress {
   tutorial: boolean;
   playlists: Playlist[]; playlist: number;
   levelSeen: number;
+  unlocked: VehicleId[];   // cars unlocked early with gems
+  paydayArmed: boolean;    // next event pays double coins (bought with gems)
 }
 
 const KEY = 'picco.progress.v3';
@@ -43,19 +45,20 @@ function fresh(): Progress {
     stars: {}, best: {}, lastEvent: EVENTS[0].id, freeCity: 'colombo',
     daily: { day: '', streak: 0, claimed: false }, challenges: { day: '', list: [] },
     controls: 'buttons', autoGas: false, sensitivity: 1, haptics: true, tiltInvert: false, tutorial: false,
-    playlists: [], playlist: 0, levelSeen: 1,
+    playlists: [], playlist: 0, levelSeen: 1, unlocked: [], paydayArmed: false,
   };
 }
 
 function load(): Progress {
   const base = fresh();
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (raw) {
-      const p = { ...base, ...raw, garage: { ...base.garage } } as Progress;
-      for (const v of VEHICLES) p.garage[v.id] = { ...base.garage[v.id], ...(raw.garage?.[v.id] ?? {}), up: { ...base.garage[v.id].up, ...(raw.garage?.[v.id]?.up ?? {}) } };
-      return p;
+    const text = localStorage.getItem(KEY);
+    let raw: unknown = null;
+    try { raw = JSON.parse(text || 'null'); } catch {
+      // never silently wipe a save that fails to parse: keep a copy for recovery
+      try { localStorage.setItem(`${KEY}.corrupt-${Date.now()}`, text ?? ''); } catch { /* storage full */ }
     }
+    if (raw && typeof raw === 'object') return sanitize(raw as Record<string, unknown>, base);
     // carry over a v2 save
     const old = JSON.parse(localStorage.getItem(OLD) || 'null');
     if (old) {
@@ -72,6 +75,60 @@ function load(): Progress {
     }
   } catch { /* ignore */ }
   return base;
+}
+
+/**
+ * Save data is untrusted (localStorage is editable and can be corrupted): keep
+ * only known ids, the right types and sane ranges, falling back to defaults.
+ * (production/security/security-audit-2026-11-24-full.md SEC-001)
+ */
+function sanitize(raw: Record<string, unknown>, base: Progress): Progress {
+  const num = (v: unknown, d: number, min = 0, max = 1e9) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d);
+  const int = (v: unknown, d: number, min = 0, max = 1e9) => Math.round(num(v, d, min, max));
+  const str = (v: unknown, d: string, max = 200) => (typeof v === 'string' ? v.slice(0, max) : d);
+  const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
+  const ids = new Set<string>(VEHICLES.map((v) => v.id));
+  const vlist = (v: unknown): VehicleId[] => (Array.isArray(v) ? [...new Set(v.filter((x): x is VehicleId => typeof x === 'string' && ids.has(x)))] : []);
+  const strList = (v: unknown, d: string[]) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 50) : d);
+  const evIds = new Set(EVENTS.map((e) => e.id));
+  const p = base;
+  p.coins = int(raw.coins, p.coins, 0, 1e8); p.gems = int(raw.gems, p.gems, 0, 1e6); p.xp = int(raw.xp, p.xp, 0, 1e9);
+  p.km = num(raw.km, 0, 0, 1e6);
+  for (const k of ['drives', 'overtakes', 'wins', 'nearMisses', 'driftBest', 'passengers', 'escapes', 'catches', 'levelSeen'] as const) p[k] = int(raw[k], p[k], 0, 1e9);
+  p.owned = [...new Set<VehicleId>(['tuk', 'pbus', ...vlist(raw.owned)])];
+  p.unlocked = vlist(raw.unlocked);
+  p.vehicle = typeof raw.vehicle === 'string' && p.owned.includes(raw.vehicle as VehicleId) ? (raw.vehicle as VehicleId) : 'tuk';
+  p.horns = strList(raw.horns, p.horns); p.finishes = strList(raw.finishes, p.finishes) as Finish[];
+  if (!p.finishes.includes('gloss')) p.finishes.unshift('gloss');
+  const rs = (raw.stars ?? {}) as Record<string, unknown>, rb = (raw.best ?? {}) as Record<string, unknown>;
+  for (const id of evIds) {
+    if (rs[id] !== undefined) p.stars[id] = int(rs[id], 0, 0, 3);
+    if (typeof rb[id] === 'number' && Number.isFinite(rb[id])) p.best[id] = rb[id] as number;
+  }
+  p.lastEvent = typeof raw.lastEvent === 'string' && evIds.has(raw.lastEvent) ? raw.lastEvent : p.lastEvent;
+  p.freeCity = str(raw.freeCity, p.freeCity, 40);
+  const rg = (raw.garage ?? {}) as Record<string, Record<string, unknown>>;
+  for (const v of VEHICLES) {
+    const g = rg[v.id], d = p.garage[v.id];
+    if (!g || typeof g !== 'object') continue;
+    d.tint = /^#[0-9a-f]{6}$/i.test(String(g.tint)) ? String(g.tint) : d.tint;
+    d.glow = g.glow === '' || /^#[0-9a-f]{6}$/i.test(String(g.glow)) ? String(g.glow ?? '') : d.glow;
+    d.finish = (['gloss', 'metallic', 'matte'] as const).includes(g.finish as Finish) ? (g.finish as Finish) : d.finish;
+    d.horn = str(g.horn, d.horn, 20); d.plate = str(g.plate, '', 12);
+    const up = (g.up ?? {}) as Record<string, unknown>;
+    for (const u of UPGRADES) d.up[u.id] = int(up[u.id], 0, 0, MAX_LEVEL);
+  }
+  const daily = (raw.daily ?? {}) as Record<string, unknown>;
+  p.daily = { day: str(daily.day, '', 10), streak: int(daily.streak, 0, 0, 10000), claimed: bool(daily.claimed, false) };
+  const ch = raw.challenges as { day?: unknown; list?: unknown } | undefined;
+  if (ch && typeof ch.day === 'string' && Array.isArray(ch.list)) p.challenges = { day: ch.day.slice(0, 10), list: ch.list.slice(0, 6) as Challenge[] };
+  p.controls = (['buttons', 'wheel', 'tilt'] as const).includes(raw.controls as Progress['controls']) ? (raw.controls as Progress['controls']) : p.controls;
+  p.autoGas = bool(raw.autoGas, p.autoGas); p.haptics = bool(raw.haptics, p.haptics); p.tiltInvert = bool(raw.tiltInvert, p.tiltInvert);
+  p.tutorial = bool(raw.tutorial, p.tutorial); p.paydayArmed = bool(raw.paydayArmed, false);
+  p.sensitivity = num(raw.sensitivity, 1, 0.5, 2);
+  p.playlists = Array.isArray(raw.playlists) ? raw.playlists.filter((x): x is Playlist => !!x && typeof (x as Playlist).url === 'string').slice(0, 30).map((x) => ({ name: str(x.name, 'My playlist', 40), url: str(x.url, '', 300) })) : [];
+  p.playlist = int(raw.playlist, 0, 0, 30);
+  return p;
 }
 
 export const progress: Progress = load();
@@ -140,10 +197,27 @@ export function nextEvent(): EventSpec {
 export function canBuyVehicle(id: VehicleId): 'owned' | 'locked' | 'coins' | 'ok' {
   const v = VEHICLES.find((x) => x.id === id)!;
   if (progress.owned.includes(id)) return 'owned';
-  if (totalStars() < v.stars) return 'locked';
+  if (totalStars() < v.stars && !progress.unlocked.includes(id)) return 'locked';
   if (progress.coins < v.price) return 'coins';
   return 'ok';
 }
+// ── gem sinks ───────────────────────────────────────────────────────────────
+/** Gems to unlock a car before its star requirement (the coin price still applies). */
+export const unlockGems = (id: VehicleId) => Math.max(10, Math.round(VEHICLES.find((x) => x.id === id)!.stars * 1.5));
+export function unlockWithGems(id: VehicleId): boolean {
+  const cost = unlockGems(id);
+  if (progress.unlocked.includes(id) || progress.gems < cost) return false;
+  progress.gems -= cost; progress.unlocked.push(id); save();
+  return true;
+}
+export const PAYDAY_GEMS = 5;
+/** Payday: the next event you finish pays double coins. */
+export function armPayday(): boolean {
+  if (progress.paydayArmed || progress.gems < PAYDAY_GEMS) return false;
+  progress.gems -= PAYDAY_GEMS; progress.paydayArmed = true; save();
+  return true;
+}
+
 export function buyVehicle(id: VehicleId): boolean {
   if (canBuyVehicle(id) !== 'ok') return false;
   progress.coins -= VEHICLES.find((x) => x.id === id)!.price;

@@ -1,6 +1,8 @@
 import { ui as sfx, unlockAudio } from '../core/audio';
+import { DEBUG_HOOKS } from '../config';
 import { setStage, warmUp } from '../core/renderer';
 import { openMusic } from './music';
+import { openPhoto } from './photo';
 import { settings } from '../core/settings';
 import { track } from '../core/track';
 import { TYPE_INFO, type EventSpec } from '../game/career';
@@ -29,7 +31,7 @@ export async function startDrive(spec: EventSpec, vehicleId: string): Promise<vo
   active = drive;
   setStage(drive);
   track('drive_start', { city: c.id, vehicle: veh.id, mode: spec.type, event: spec.id, quality: settings.quality });
-  (window as unknown as { drive: Drive }).drive = drive;
+  if (DEBUG_HOOKS) (window as unknown as { drive: Drive }).drive = drive;
   buildHud(drive);
 }
 
@@ -260,6 +262,7 @@ function buildHud(drive: Drive) {
           h('button.pbtn.r', { onclick: close }, icon('play', 17), 'Resume'),
           spec.type !== 'free' ? h('button.pbtn', { onclick: () => { scrim.remove(); cleanup(); void startDrive(spec, veh.id); } }, icon('rotate', 17), 'Restart') : null,
           h('button.pbtn', { onclick: () => openSettings(() => buildSteer()) }, icon('gear', 17), 'Settings'),
+          h('button.pbtn', { onclick: () => { scrim.remove(); openPhoto(drive, root, () => openPause()); } }, icon('camera', 17), 'Photo'),
           h('button.pbtn', { onclick: () => { scrim.remove(); finish(true); } }, icon('flag', 17), spec.type === 'free' ? 'End drive' : 'Quit event')),
       ));
     root.append(scrim);

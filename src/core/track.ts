@@ -22,15 +22,22 @@ const base = {
 };
 
 let queue: object[] = [];
+let rpcOk = true;
 let timer = 0;
 const enabled = !/localhost|127\.0\.0\.1/.test(location.hostname) && !navigator.webdriver;
 
 function flush(beacon = false) {
   if (!queue.length) return;
-  const body = JSON.stringify(queue); queue = [];
-  const url = `${SUPABASE_URL}/rest/v1/picco_events`;
+  const events = queue; queue = [];
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-  fetch(url, { method: 'POST', headers, body, keepalive: beacon }).catch(() => {});
+  // validated server-side ingest (migration 0004); the direct table insert is the fallback until it is applied
+  if (rpcOk) {
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/picco_track`, { method: 'POST', headers, body: JSON.stringify({ p_events: events }), keepalive: beacon })
+      .then((r) => { if (r.status === 404) { rpcOk = false; queue.unshift(...events); flush(); } })
+      .catch(() => {});
+  } else {
+    fetch(`${SUPABASE_URL}/rest/v1/picco_events`, { method: 'POST', headers, body: JSON.stringify(events), keepalive: beacon }).catch(() => {});
+  }
 }
 
 export function track(type: EventType, props: Record<string, unknown> = {}): void {

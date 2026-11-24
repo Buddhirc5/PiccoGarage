@@ -10,7 +10,6 @@ import { EVENTS, eventById } from '../game/career';
  * picco_admin_stats() database function, which refuses anyone not listed in
  * picco_admins.
  */
-const ADMIN_EMAIL = 'buddhirc5@gmail.com';
 const root = document.getElementById('admin')!;
 
 function h<T extends HTMLElement = HTMLElement>(tag: string, attrs: Record<string, unknown> = {}, ...kids: (Node | string | null | false | undefined)[]): T {
@@ -32,7 +31,7 @@ const here = () => `${location.origin}/admin`;
 
 // ── sign in ─────────────────────────────────────────────────────────────────
 function showLogin(note = '', recovery = false) {
-  const email = h<HTMLInputElement>('input.in', { type: 'email', autocomplete: 'username', value: ADMIN_EMAIL });
+  const email = h<HTMLInputElement>('input.in', { type: 'email', autocomplete: 'username', placeholder: 'Admin email' });
   const pass = h<HTMLInputElement>('input.in', { type: 'password', autocomplete: recovery ? 'new-password' : 'current-password', placeholder: recovery ? 'New password (8+ characters)' : 'Password' });
   const msg = h('div.msg', {}, note);
   const say = (t: string, err = false) => { msg.textContent = t; msg.className = `msg${err ? ' err' : ''}`; };
@@ -56,11 +55,11 @@ function showLogin(note = '', recovery = false) {
 
   const go = h<HTMLButtonElement>('button.btn.primary', { type: 'submit' }, 'Sign in');
   const google = h<HTMLButtonElement>('button.btn.ghost', { type: 'button', onclick: async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: here(), queryParams: { login_hint: ADMIN_EMAIL, prompt: 'select_account' } } });
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: here(), queryParams: { prompt: 'select_account' } } });
   } }, 'Continue with Google');
   const reset = h<HTMLButtonElement>('button.link', { type: 'button', onclick: async () => {
     const em = email.value.trim().toLowerCase();
-    if (em !== ADMIN_EMAIL) return say('Only the admin email can be used here.', true);
+    if (!em.includes('@')) return say('Enter your admin email first.', true);
     reset.disabled = true;
     const { error } = await supabase.auth.resetPasswordForEmail(em, { redirectTo: here() });
     reset.disabled = false;
@@ -71,7 +70,6 @@ function showLogin(note = '', recovery = false) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const em = email.value.trim().toLowerCase();
-    if (em !== ADMIN_EMAIL) return say('This account does not have admin access.', true);
     go.disabled = true; say('Signing in…');
     const { error } = await supabase.auth.signInWithPassword({ email: em, password: pass.value });
     go.disabled = false;
@@ -93,7 +91,7 @@ interface Stats {
 const NAMES: Record<string, string> = { pbus: 'Private Coach', sltb: 'Red Route Bus', tuk: 'Three-Wheeler', pink: 'Pink Queen', leyland: 'Blue Thunder', ashok: 'Sun Blazer', tukking: 'Street King', tukneon: 'Neon Rider', free: 'Free roam', race: 'Race', sprint: 'Sprint', circuit: 'Circuit', knockout: 'Knockout', drift: 'Drift', route: 'Bus route', checkpoint: 'Checkpoint', nearmiss: 'Near miss', kandy: 'Kandy', share: 'Share',
   colombo: 'Colombo', galle: 'Galle', anuradhapura: 'Anuradhapura', kottawa: 'Kottawa', pannipitiya: 'Pannipitiya',
   phone: 'Phone', desktop: 'Desktop', tablet: 'Tablet', direct: 'Direct', drive_start: 'Drive start', drive_end: 'Drive end', visit: 'Visit', upgrade: 'Upgrade', vehicle: 'Vehicle', city: 'City', garage: 'Garage', music: 'Music', camera: 'Camera' };
-const label = (k: string | null) => (k ? NAMES[k] ?? k.replace(/_/g, ' ') : 'unknown');
+const label = (k: unknown) => { const v = k == null ? '' : String(k); return v ? NAMES[v] ?? v.replace(/_/g, ' ') : 'unknown'; };
 
 let days = 30, timer = 0;
 
@@ -186,7 +184,7 @@ async function player(box: HTMLElement, id: string) {
     h('h3', {}, `Player ${id.slice(0, 8)}`, h('button.btn.ghost.sm', { onclick: () => box.replaceChildren() }, 'Close')),
     h('div.kv', {}, kv('Level', String(sn.level ?? '—')), kv('Stars', String(sn.stars ?? 0)), kv('Coins', fmt(sn.coins ?? 0)), kv('Gems', fmt(sn.gems ?? 0)),
       kv('Races won', fmt(sn.wins ?? 0)), kv('Km', String(sn.km ?? 0)), kv('Passengers', fmt(sn.passengers ?? 0)), kv('Police escapes', fmt(sn.escapes ?? 0)),
-      kv('Vehicles', (sn.owned ?? []).map((v) => label(v)).join(', ') || '—'), kv('Controls', sn.controls ?? '—'),
+      kv('Vehicles', (Array.isArray(sn.owned) ? sn.owned : []).map((v) => label(v)).join(', ') || '—'), kv('Controls', sn.controls ?? '—'),
       kv('First seen', d.player ? new Date(d.player.first_seen).toLocaleDateString() : '—'), kv('Last seen', d.player ? ago(d.player.last_seen) : '—')),
     h('div.grant', {}, h('label', {}, 'Coins', coins), h('label', {}, 'Gems', gems), h('label.wide', {}, 'Note', note), send, msg),
     d.grants.length ? h('div.small', {}, 'Gifts: ', ...d.grants.map((g) => h('span.pill', {}, `${fmt(g.coins)} coins · ${g.gems} gems · ${g.claimed_at ? 'collected' : 'waiting'}`))) : null,
@@ -369,7 +367,9 @@ async function boot() {
   const s = data.session;
   if (recovering && s) return showLogin('', true);
   if (!s) return showLogin();
-  if ((s.user.email ?? '').toLowerCase() !== ADMIN_EMAIL) {
+  // access is decided by the server (picco_is_admin), not by an email baked into this page (SEC-004)
+  const { data: isAdmin } = await supabase.rpc('picco_is_admin');
+  if (isAdmin !== true) {
     await supabase.auth.signOut();
     return showLogin(`${s.user.email} does not have admin access.`);
   }

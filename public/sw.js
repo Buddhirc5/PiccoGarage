@@ -1,6 +1,6 @@
 // Picco Garage service worker: cache-first for hashed build files and game assets,
 // network-first for pages so new releases show up straight away.
-const CACHE = 'picco-v6';
+const CACHE = 'picco-v7';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(
   caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));

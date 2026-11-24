@@ -1,7 +1,8 @@
 import * as THREE from 'three';
+import { DEBUG_HOOKS } from '../config';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { settings } from './settings';
-import { Post, type PostParams } from './post';
+import { Post, type Look, type PostParams } from './post';
 
 /**
  * One WebGL renderer for the whole app. Screens hand it a "stage" (scene +
@@ -113,6 +114,18 @@ function resize() {
 }
 
 const perf = { upd: 0, ren: 0, n: 0 };
+let grab: ((c: HTMLCanvasElement | null) => void) | null = null;
+
+/** Photo looks (post-processing grade); null = the game's own grade. Low quality has no post pass. */
+export function setLook(l: Look | null): boolean { if (!post) return false; post.setLook(l); return true; }
+
+/**
+ * Copy the next rendered frame. The copy is made straight after the render, in
+ * the same task, because the WebGL drawing buffer is cleared once it is shown.
+ */
+export function capture(): Promise<HTMLCanvasElement | null> {
+  return new Promise((res) => { grab = res; });
+}
 function loop(now: number) {
   const dt = Math.min((now - last) / 1000 || 0, 1 / 20);
   last = now; time += dt;
@@ -123,6 +136,10 @@ function loop(now: number) {
   renderer.info.reset();
   if (stage.post && post) { post.render(renderer, stage.scene, stage.camera, stage.post, time); adapt(now - prevNow); }
   else renderer.render(stage.scene, stage.camera);
+  if (grab) {
+    const done = grab; grab = null;
+    try { const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height; c.getContext('2d')!.drawImage(canvas, 0, 0); done(c); } catch { done(null); }
+  }
   prevNow = now;
   perf.upd += b - a; perf.ren += performance.now() - b; perf.n++;
 }
@@ -146,8 +163,8 @@ function adapt(frameMs: number) {
   else if (pace.fast >= 4) { next = Math.min(1, scale * 1.06); pace.fast = 0; }
   if (Math.abs(next - scale) > 0.01) { scale = next; renderer.setPixelRatio(capRatio() * scale); resize(); pace.settle = 0.5; }
 }
-if (/[?&]debug/.test(location.search)) (window as unknown as { __stage: () => Stage | null }).__stage = () => stage;
-if (/[?&]debug/.test(location.search)) (window as unknown as { __perf: unknown }).__perf = () => {
+if (DEBUG_HOOKS && /[?&]debug/.test(location.search)) (window as unknown as { __stage: () => Stage | null }).__stage = () => stage;
+if (DEBUG_HOOKS && /[?&]debug/.test(location.search)) (window as unknown as { __perf: unknown }).__perf = () => {
   const i = renderer.info, r = { calls: i.render.calls, tris: i.render.triangles, geos: i.memory.geometries, tex: i.memory.textures, progs: i.programs?.length,
     updMs: +(perf.upd / Math.max(1, perf.n)).toFixed(2), renMs: +(perf.ren / Math.max(1, perf.n)).toFixed(2), px: +renderer.getPixelRatio().toFixed(2), scale: +scale.toFixed(2), post: !!(stage?.post && post) };
   perf.upd = perf.ren = perf.n = 0; return r;

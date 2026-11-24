@@ -10,6 +10,11 @@
 ## Skills installed in this repo
 - `.claude/skills` and `.claude/agents`: the Claude Code Game Studios kit
   (MIT, © Donchitos, see `.claude/GAME-STUDIOS-LICENSE`), with its `scripts`,
-  `docs`, `rules`, `engines` and `genres`. Its hooks, settings.json and status line
-  are deliberately NOT installed (they run shell commands automatically).
+  `docs`, `rules`, `engines` and `genres`, plus `project.yaml`. Its hook scripts are
+  present only because skills call `hooks/yaml-helper.sh`; they stay inert because
+  the kit's `settings.json` and status line are deliberately NOT installed.
   Its `code-review` skill was skipped (clashes with the built-in one).
+
+## Studio artifacts
+- Balance report: `design/balance/` · quick specs: `design/quick-specs/` · security: `production/security/`.
+- Debug hooks (`window.nav`, `window.drive`, `?debug`) exist only on localhost/dev builds.

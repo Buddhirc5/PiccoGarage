@@ -2,7 +2,7 @@ import { ui as sfx, unlockAudio } from '../core/audio';
 import { live } from '../core/live';
 import { TYPE_INFO, eventById, freeRoam, type EventSpec } from '../game/career';
 import { city, vehicle, VEHICLES } from '../game/data';
-import { classOf, progress, prOf, save } from '../game/progress';
+import { classOf, progress, prOf, save, armPayday, PAYDAY_GEMS } from '../game/progress';
 import { fmtNum, fmtTime, h, mount, setBackdrop, toast } from './dom';
 import { setStage } from '../core/renderer';
 import { freeTime, freeWeather } from './events';
@@ -36,6 +36,18 @@ export function showPrerace(id: string): void {
   const targets = e.type === 'free' ? null : h('div.targets', {}, ...[0, 1, 2].map((i) => h('div', {}, stars(i + 1),
     h('span', {}, isScore ? fmtNum(e.targets[i]) : e.type === 'checkpoint' ? (i === 0 ? 'Finish, not caught' : `Under ${fmtTime(e.targets[i])}`) : i === 2 ? '1st place' : i === 1 ? 'Top 2' : 'Top 3'))));
 
+  // gem sink: double this event's coins
+  const payday = (): HTMLElement => {
+    const row = h('button', { class: `payday${progress.paydayArmed ? ' on' : ''}`, onclick: () => {
+      if (progress.paydayArmed) return;
+      if (armPayday()) { sfx.select(); row.replaceWith(payday()); }
+      else { sfx.deny(); toast(`Payday costs ${PAYDAY_GEMS} gems.`); }
+    } },
+      h('i', {}, icon(progress.paydayArmed ? 'check' : 'gem', 18)),
+      h('div', {}, h('b', {}, progress.paydayArmed ? 'Payday is on' : 'Payday · double coins'),
+        h('span', {}, progress.paydayArmed ? 'This event pays 2× coins' : `${PAYDAY_GEMS} gems · you have ${progress.gems}`)));
+    return row;
+  };
   const start = async () => {
     if (!eligible.length) { toast(e.kind === 'bus' ? 'You need a bus for this event. Get one in the garage.' : 'You need a three-wheeler for this event.'); return; }
     await unlockAudio();
@@ -54,6 +66,7 @@ export function showPrerace(id: string): void {
         best !== undefined ? h('span.best', {}, 'Best ', isScore ? fmtNum(best) : fmtTime(best)) : null) : null,
       h('div.sec-t', {}, e.kind === 'any' ? 'Choose your ride' : `Choose your ${e.kind === 'bus' ? 'bus' : 'three-wheeler'}`),
       vpick, prRow,
+      e.type !== 'free' ? payday() : null,
       h('button.cta', { onclick: start }, h('span', {}, e.type === 'free' ? 'Start driving' : 'Start event'), h('i', {}, icon('play', 20))),
     ),
   ));

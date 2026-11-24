@@ -31,7 +31,7 @@ export function topBar(): HTMLElement {
   const li = levelInfo();
   return h('div.tbar', {},
     h('button.lvl', { 'aria-label': `Level ${li.level}`, style: `--p:${Math.round(li.pct * 100)}%`, onclick: () => { sfx.tap(); nav.tab('profile'); } }, h('b', {}, String(li.level))),
-    h('div.res', {}, h('span.coin-pill', {}, icon('coin', 16), h('b.num', { id: 'coins' }, fmtNum(progress.coins))), h('span.gem-pill', {}, icon('gem', 15), h('b.num', {}, fmtNum(progress.gems)))),
+    h('div.res', {}, h('span.coin-pill', {}, icon('coin', 16), h('b.num', { id: 'coins' }, fmtNum(progress.coins))), h('span.gem-pill', {}, icon('gem', 15), h('b.num', { id: 'gems' }, fmtNum(progress.gems)))),
     h('div.spacer'),
     h('button.cbtn.sm', { 'aria-label': 'Music', onclick: () => openMusic() }, icon('music', 18)),
     h('button.cbtn.sm', { 'aria-label': 'Settings', onclick: () => openSettings() }, icon('gear', 18)),

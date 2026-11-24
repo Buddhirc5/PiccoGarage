@@ -9,3 +9,6 @@ export const APP_VERSION = '0.2.0';
 
 /** YouTube playlist (id or URL) that plays as in-game music. Leave empty to let players paste their own. */
 export const DEFAULT_PLAYLIST = 'PLyqLkSz7MX0948RS_jI50wp3Ub_Y2O_3L';
+
+/** Console/test hooks (window.nav, window.drive, ?debug): dev builds and localhost only. */
+export const DEBUG_HOOKS = import.meta.env.DEV || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);

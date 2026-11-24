@@ -2,7 +2,7 @@ import { track } from '../core/track';
 import { horn, setCustomHorn, hasCustomHorn, ui as sfx, unlockAudio, fx } from '../core/audio';
 import { setStage } from '../core/renderer';
 import { FINISHES, GLOWS, HORNS, MAX_LEVEL, TINTS, UPGRADES, VEHICLES } from '../game/data';
-import { buyUpgrade, buyVehicle, canBuyVehicle, classOf, nextUpgradeCost, progress, save, saveBlob, stats, totalStars } from '../game/progress';
+import { buyUpgrade, buyVehicle, canBuyVehicle, classOf, nextUpgradeCost, progress, save, saveBlob, stats, totalStars, unlockGems, unlockWithGems } from '../game/progress';
 import { fmtNum, h, toast } from './dom';
 import { icon } from './icons';
 import { shell, vehicleBadge } from './nav';
@@ -40,7 +40,12 @@ export function showGarage(): void {
     const st = canBuyVehicle(v.id);
     action.replaceChildren(owned
       ? (progress.vehicle === v.id ? h('div.inuse', {}, icon('check', 16), 'Your current ride') : h('button.cta', { onclick: () => { progress.vehicle = v.id; save(); fx.fare(); renderHead(); } }, h('span', {}, 'Drive this'), h('i', {}, icon('check', 20))))
-      : st === 'locked' ? h('div.inuse.lock', {}, icon('lock', 16), `Collect ${v.stars} stars to unlock · you have ${totalStars()}`)
+      : st === 'locked' ? h('div.lockrow', {},
+        h('div.inuse.lock', {}, icon('lock', 16), `${v.stars} stars to unlock · you have ${totalStars()}`),
+        h('button', { class: `pbtn gembtn${progress.gems >= unlockGems(v.id) ? '' : ' off'}`, onclick: () => {
+          if (unlockWithGems(v.id)) { fx.levelUp(); toast(`${v.name} unlocked early. Buy it when you have the coins.`); renderHead(); updCoins(); }
+          else { sfx.deny(); toast(`You need ${unlockGems(v.id)} gems. Earn them from boss races, 3-star finishes and daily rewards.`); }
+        } }, icon('gem', 15), `Unlock now · ${unlockGems(v.id)}`))
       : h('button', { class: `cta${st === 'ok' ? '' : ' off'}`, onclick: () => {
         if (buyVehicle(v.id)) { fx.levelUp(); toast(`${v.name} is yours!`); track('upgrade', { vehicle: v.id, part: 'buy', level: 1 }); renderHead(); renderOpts(); updCoins(); }
         else { sfx.deny(); toast('Not enough coins yet. Win events to earn more.'); }
@@ -48,7 +53,10 @@ export function showGarage(): void {
     chips.style.display = owned ? '' : 'none';
     opts.style.display = owned ? '' : 'none';
   };
-  const updCoins = () => { const c = document.getElementById('coins'); if (c) c.textContent = fmtNum(progress.coins); };
+  const updCoins = () => {
+    const c = document.getElementById('coins'); if (c) c.textContent = fmtNum(progress.coins);
+    const g = document.getElementById('gems'); if (g) g.textContent = fmtNum(progress.gems);
+  };
 
   const renderOpts = () => {
     const v = cur(), g = progress.garage[v.id];

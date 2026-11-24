@@ -1,4 +1,5 @@
 import './ui/styles.css';
+import { DEBUG_HOOKS } from './config';
 import { setCustomHorn, unlockAudio } from './core/audio';
 import { loadLive } from './core/live';
 import { initPwa } from './core/pwa';
@@ -58,7 +59,7 @@ async function boot() {
   if (progress.drives > 0 || location.hash === '#play') nav.tab('home'); else nav.landing();
   document.getElementById('boot')!.classList.add('done');
   void preload([vehicle(progress.vehicle).model]);
-  (window as unknown as { nav: typeof nav }).nav = nav;
+  if (DEBUG_HOOKS) (window as unknown as { nav: typeof nav }).nav = nav; // tests only: never on the live site
 }
 
 boot().catch((e) => {

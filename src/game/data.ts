@@ -46,7 +46,7 @@ export const VEHICLES: VehicleDef[] = [
     tagline: 'The highway king. Loud horn, long body, big presence.', topSpeed: 118, accel: 3.4, brake: 9, steer: 0.5, grip: 7, drift: 0.45, mass: 0.85,
     tintable: true, defaultTint: '#ffffff', horn: 'air', price: 0, stars: 0 },
   { ...BUS, id: 'sltb', name: 'Red Route Bus', big: 'ROUTE', cutout: '/assets/img/cut_sltb.webp', model: '/assets/models/sltb.glb', length: 10.8, wheelBase: 5.7, eye: [-0.62, 2.2, 4.45],
-    tagline: 'The island workhorse. Heavy, steady, unstoppable.', topSpeed: 104, accel: 3.0, brake: 8.5, steer: 0.48, grip: 8, drift: 0.35, mass: 1,
+    tagline: 'The island workhorse. Planted, sure-footed, brakes like a wall.', topSpeed: 114, accel: 3.3, brake: 10, steer: 0.5, grip: 8.5, drift: 0.35, mass: 1,
     tintable: false, defaultTint: '#ffffff', horn: 'steady', price: 3000, stars: 6 },
   { ...TUK, id: 'tukking', name: 'Street King', big: 'KING', cutout: '/assets/img/cut_tukking.webp', model: '/assets/models/tukking.glb',
     tagline: 'Lowered, wide wheels, candy red. Built for the corners.', topSpeed: 98, accel: 5.4, brake: 11, steer: 0.66, grip: 8.5, drift: 0.95, mass: 0.22,
@@ -70,7 +70,7 @@ export const UPGRADES: { id: UpgradeId; name: string; desc: string; base: number
   { id: 'engine', name: 'Engine', desc: 'Higher top speed.', base: 500 },
   { id: 'gearbox', name: 'Gearbox', desc: 'Faster acceleration.', base: 400 },
   { id: 'tyres', name: 'Tyres', desc: 'More grip and sharper steering.', base: 350 },
-  { id: 'brakes', name: 'Brakes', desc: 'Shorter stopping distance.', base: 300 },
+  { id: 'brakes', name: 'Brakes', desc: 'Shorter stopping distance.', base: 200 },
   { id: 'turbo', name: 'Turbo', desc: 'Stronger, longer boost.', base: 600 },
 ];
 export const MAX_LEVEL = 5;

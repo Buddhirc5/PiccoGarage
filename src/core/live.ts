@@ -1,4 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL, DEFAULT_PLAYLIST } from '../config';
+import { parseYouTube } from './youtube';
 
 /**
  * Live config, edited from /admin without a deploy. Read from the public
@@ -32,15 +33,17 @@ export async function loadLive(): Promise<void> {
     const rows = (await r.json()) as { key: string; value: unknown }[];
     for (const { key, value } of rows) {
       if (key === 'stations' && Array.isArray(value)) {
-        // keep default names, overlay admin playlist links and any new stations
-        for (const s of value as Station[]) {
+        // keep default names, overlay admin playlist links and any new stations (validated: SEC-011)
+        const clean = (value as Partial<Station>[]).filter((x) => x && typeof x.id === 'string' && typeof x.name === 'string').slice(0, 20)
+          .map((x) => ({ id: String(x.id).slice(0, 40), name: String(x.name).slice(0, 40), desc: typeof x.desc === 'string' ? x.desc.slice(0, 80) : '', url: typeof x.url === 'string' && parseYouTube(x.url) ? x.url.slice(0, 300) : '' }));
+        for (const s of clean) {
           const cur = live.stations.find((x) => x.id === s.id);
           if (cur) Object.assign(cur, s); else live.stations.push(s);
         }
       }
-      if (key === 'weeklyEvent' && typeof value === 'string') live.weeklyEvent = value;
-      if (key === 'coinMultiplier' && typeof value === 'number') live.coinMultiplier = value;
-      if (key === 'message' && typeof value === 'string') live.message = value;
+      if (key === 'weeklyEvent' && typeof value === 'string') live.weeklyEvent = value.slice(0, 40);
+      if (key === 'coinMultiplier' && typeof value === 'number' && Number.isFinite(value)) live.coinMultiplier = Math.min(3, Math.max(1, value));
+      if (key === 'message' && typeof value === 'string') live.message = value.slice(0, 140);
     }
   } catch { /* offline: defaults */ }
 }

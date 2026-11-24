@@ -54,7 +54,7 @@ void main() {
 
 const COMPOSITE = /* glsl */ `
 uniform sampler2D tScene; uniform sampler2D tBloom;
-uniform float uBloom, uExposure, uBoost, uFlash, uSat, uContrast, uVignette, uTime;
+uniform float uBloom, uExposure, uBoost, uFlash, uSat, uContrast, uVignette, uTime, uGrain;
 uniform vec3 uLift, uGain;
 varying vec2 vUv;
 vec3 aces(vec3 x) { // Narkowicz fit
@@ -93,10 +93,15 @@ void main() {
   col *= mix(1.0, v, uVignette + uBoost * 0.25);
   col = mix(col, vec3(1.0, 0.25, 0.2), uFlash * 0.35);
   col = toSRGB(col);
+  // film grain (photo looks)
+  col += (fract(sin(dot(gl_FragCoord.xy * 0.731 + uTime * 13.7, vec2(41.3, 289.1))) * 15731.743) - 0.5) * uGrain;
   // dither to stop sky banding
   col += (fract(sin(dot(gl_FragCoord.xy + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
   gl_FragColor = vec4(col, 1.0);
 }`;
+
+export interface Look { sat: number; contrast: number; vignette: number; grain: number; lift: [number, number, number]; gain: [number, number, number] }
+export const GAME_LOOK: Look = { sat: 1.14, contrast: 1.08, vignette: 0.35, grain: 0, lift: [0, 0.012, 0.03], gain: [1.03, 1, 0.97] };
 
 export class Post {
   private scene: THREE.WebGLRenderTarget;
@@ -124,7 +129,7 @@ export class Post {
     this.up = mk(UP, { tSrc: { value: null }, tAdd: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.comp = mk(COMPOSITE, {
       tScene: { value: this.scene.texture }, tBloom: { value: null }, uBloom: { value: 0.55 }, uExposure: { value: 1.0 },
-      uBoost: { value: 0 }, uFlash: { value: 0 }, uSat: { value: 1.14 }, uContrast: { value: 1.08 }, uVignette: { value: 0.35 }, uTime: { value: 0 },
+      uBoost: { value: 0 }, uFlash: { value: 0 }, uSat: { value: 1.14 }, uContrast: { value: 1.08 }, uVignette: { value: 0.35 }, uTime: { value: 0 }, uGrain: { value: 0 },
       uLift: { value: new THREE.Vector3(0.0, 0.012, 0.03) }, uGain: { value: new THREE.Vector3(1.03, 1.0, 0.97) },
     });
     // one oversized triangle covers the screen
@@ -132,6 +137,13 @@ export class Post {
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
     this.quad = new THREE.Mesh(g, this.comp);
     this.quad.frustumCulled = false;
+  }
+
+  /** A photo look overrides the grade; null restores the game grade. */
+  setLook(l: Look | null): void {
+    const u = this.comp.uniforms, d = l ?? GAME_LOOK;
+    u.uSat.value = d.sat; u.uContrast.value = d.contrast; u.uVignette.value = d.vignette; u.uGrain.value = d.grain;
+    u.uLift.value.set(...d.lift); u.uGain.value.set(...d.gain);
   }
 
   setSize(w: number, h: number): void {

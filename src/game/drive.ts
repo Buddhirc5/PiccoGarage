@@ -28,6 +28,7 @@ export interface HudState {
 export type DriveEvent = 'overtake' | 'nearmiss' | 'drift' | 'bump' | 'crash' | 'finish' | 'go' | 'knockout' | 'caught' | 'escaped' | 'heat'
   | 'checkpoint' | 'stop' | 'fare' | 'challenge' | 'boost';
 export interface Summary {
+  payday?: boolean;
   spec: EventSpec; vehicle: VehicleDef; result: RaceResult; stars: number; prevStars: number; newBest: boolean;
   coins: number; xp: number; gems: number;
   stats: { km: number; time: number; overtakes: number; nearMisses: number; driftBest: number; bumps: number; topKmh: number; passengers: number; escaped: number; caught: number };
@@ -819,12 +820,16 @@ export class Drive implements Stage {
     const prevStars = progress.stars[spec.id] ?? 0;
     let coins = this.coinsEarned + Math.floor(km * 40), xp = Math.floor(km * 100) + this.overtakes * 20 + this.nearMisses * 15 + Math.floor(this.driftTotal / 200), gems = 0;
     if (stars > 0) {
-      coins += Math.round(spec.reward.coins * (0.6 + stars * 0.2));
+      // first clears and star improvements pay in full; re-clears at the same stars pay 60%
+      const repeat = stars <= prevStars ? 0.6 : 1;
+      coins += Math.round(spec.reward.coins * (0.6 + stars * 0.2) * repeat);
       xp += Math.round(spec.reward.xp * (0.6 + stars * 0.2));
       if (stars > prevStars && prevStars === 0) gems += spec.reward.gems;
       if (stars === 3 && prevStars < 3) gems += 2;
     }
     coins = Math.round(coins * (spec.id === live.weeklyEvent ? 2 : 1) * live.coinMultiplier);
+    const payday = progress.paydayArmed && spec.type !== 'free';
+    if (payday) { coins *= 2; progress.paydayArmed = false; }
     let newBest = false;
     if (finishedOk && spec.type !== 'free') {
       const key = spec.id, better = spec.type === 'checkpoint' || this.isRace ? (v: number) => h.time < v : (v: number) => h.score > v;
@@ -849,7 +854,7 @@ export class Drive implements Stage {
     }
     save();
     return {
-      spec, vehicle: this.def, result, stars, prevStars, newBest, coins, xp, gems,
+      spec, vehicle: this.def, result, stars, prevStars, newBest, coins, xp, gems, payday,
       stats: { km, time: h.time, overtakes: this.overtakes, nearMisses: this.nearMisses, driftBest: this.driftBest, bumps: this.bumps, topKmh: this.top, passengers: this.passengers, escaped: this.escaped, caught: this.caught },
       challenges: ch, levelUp,
     };

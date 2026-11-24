@@ -658,3 +658,33 @@ body.driving .mbar { height: 38px; max-width: 250px; }
 .msheet .sheet { max-height: calc(100dvh - 24px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 @media (orientation: landscape) and (max-height: 480px) { .msheet .stations { max-height: none; } }
 #music:has(.mvid.show) { z-index: 80; }
+
+/* gem sinks */
+.lockrow { display: grid; gap: 8px; }
+.gembtn { justify-content: center; color: #bff1ff; box-shadow: inset 0 0 0 1px rgba(107,224,255,.45); }
+.gembtn .ico { color: #6be0ff; } .gembtn.off { opacity: .55; }
+.payday { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; text-align: left; background: rgba(107,224,255,.08); box-shadow: inset 0 0 0 1px rgba(107,224,255,.3); }
+.payday i { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: rgba(107,224,255,.16); color: #6be0ff; flex: none; }
+.payday div { display: grid; } .payday b { font-size: 14px; } .payday span { font-size: 12px; color: var(--soft); }
+.payday.on { background: rgba(48,209,88,.12); box-shadow: inset 0 0 0 1px rgba(48,209,88,.5); } .payday.on i { background: rgba(48,209,88,.2); color: #30d158; }
+
+/* photo mode */
+.photo { position: absolute; inset: 0; z-index: 60; }
+.ph-touch { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+.ph-top { position: absolute; left: 0; right: 0; top: calc(10px + var(--st)); display: flex; justify-content: space-between; align-items: center; padding: 0 max(14px, var(--sr)) 0 max(14px, var(--sl)); pointer-events: none; }
+.ph-top > * { pointer-events: auto; }
+.ph-hint { display: inline-flex; gap: 6px; align-items: center; padding: 8px 12px; border-radius: 999px; background: rgba(0,0,0,.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 12.5px; font-weight: 600; }
+.ph-bar { position: absolute; left: 0; right: 0; bottom: calc(10px + var(--sb)); display: flex; align-items: center; gap: 12px; padding: 0 max(14px, var(--sr)) 0 max(14px, var(--sl)); }
+.ph-looks { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.ph-looks::-webkit-scrollbar { display: none; }
+.ph-looks .chip { flex: none; height: 36px; padding: 0 14px; border-radius: 999px; background: rgba(0,0,0,.5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 13px; font-weight: 600; }
+.ph-looks .chip.on { background: #fff; color: #111; }
+.ph-vig { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 999px; background: rgba(0,0,0,.45); }
+.ph-vig input { width: 90px; }
+.ph-shutter { width: 66px; height: 66px; border-radius: 50%; border: 4px solid #fff; display: grid; place-items: center; flex: none; background: rgba(255,255,255,.15); }
+.ph-shutter i { width: 50px; height: 50px; border-radius: 50%; background: #fff; transition: transform .12s; }
+.ph-shutter:active i { transform: scale(.86); }
+.ph-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.ph-flash.go { animation: phflash .45s ease-out; }
+@keyframes phflash { 0% { opacity: .85; } 100% { opacity: 0; } }
+@media (orientation: portrait) { .ph-bar { flex-wrap: wrap; justify-content: center; } .ph-looks { flex-basis: 100%; } }
